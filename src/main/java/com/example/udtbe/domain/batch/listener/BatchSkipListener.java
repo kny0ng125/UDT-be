@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.SkipListener;
 import org.springframework.stereotype.Component;
 
+@Deprecated(since = "스트리밍 전환으로 배치 스킵 리스너 미사용.")
 @Component
 @RequiredArgsConstructor
 @Slf4j

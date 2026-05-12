@@ -2,6 +2,7 @@ package com.example.udtbe.domain.admin.controller;
 
 import com.example.udtbe.domain.admin.dto.request.AdminCastsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsRegisterRequest;
+import com.example.udtbe.domain.admin.dto.request.AdminContentDeleteResubmitRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentGetsRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
@@ -78,6 +79,28 @@ public class AdminController implements AdminControllerApiSpec {
         AdminContentDeleteResponse contentDeleteResponse = adminService.deleteBulkContent(admin,
                 contentId);
         return ResponseEntity.status(HttpStatus.CREATED).body(contentDeleteResponse);
+    }
+
+    @Override
+    public ResponseEntity<AdminContentRegisterResponse> resubmitRegisterJob(Long jobId,
+            AdminContentRegisterRequest request) {
+        AdminContentRegisterResponse response = adminService.resubmitRegisterJob(jobId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Override
+    public ResponseEntity<AdminContentUpdateResponse> resubmitUpdateJob(Long jobId,
+            AdminContentUpdateRequest request) {
+        AdminContentUpdateResponse response = adminService.resubmitUpdateJob(jobId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @Override
+    public ResponseEntity<AdminContentDeleteResponse> resubmitDeleteJob(Long jobId,
+            AdminContentDeleteResubmitRequest request) {
+        AdminContentDeleteResponse response = adminService.resubmitDeleteJob(jobId,
+                request.contentId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @Override

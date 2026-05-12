@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@Deprecated(since = "스트리밍 전환으로 배치 재시도 미사용. AdminTriggerService 스트리밍 재시도 참조.")
 public class BatchRetryProcessor {
 
     private static final int RETRY_LIMIT = 3;

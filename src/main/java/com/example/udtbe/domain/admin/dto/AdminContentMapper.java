@@ -191,6 +191,7 @@ public class AdminContentMapper {
                 platformDTOs,
                 job.getErrorCode(),
                 job.getErrorMessage(),
+                job.getValidationErrors(),
                 job.getRetryCount(),
                 job.getSkipCount()
         );
@@ -221,6 +222,7 @@ public class AdminContentMapper {
                 platformDTOs,
                 job.getErrorCode(),
                 job.getErrorMessage(),
+                job.getValidationErrors(),
                 job.getRetryCount(),
                 job.getSkipCount()
         );
@@ -235,6 +237,7 @@ public class AdminContentMapper {
                 job.getContentId(),
                 job.getErrorCode(),
                 job.getErrorMessage(),
+                job.getValidationErrors(),
                 job.getRetryCount(),
                 job.getSkipCount()
         );

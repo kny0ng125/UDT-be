@@ -12,6 +12,7 @@ import com.example.udtbe.domain.admin.dto.response.AdminDirectorsGetResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminScheduledResContentMetricResponse;
 import com.example.udtbe.domain.admin.entity.Admin;
 import com.example.udtbe.domain.admin.repository.AdminRepository;
+import com.example.udtbe.domain.batch.dto.JobValidationError;
 import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
 import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
 import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
@@ -44,6 +45,7 @@ import com.example.udtbe.domain.content.repository.GenreRepository;
 import com.example.udtbe.domain.content.repository.PlatformRepository;
 import com.example.udtbe.global.dto.CursorPageResponse;
 import com.example.udtbe.global.exception.RestApiException;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -94,6 +96,97 @@ public class AdminQuery {
 
         castIds.forEach(this::validCastByCastId);
         directorIds.forEach(this::validDirectorByDirectorId);
+    }
+
+    public List<JobValidationError> collectValidationErrors(List<AdminCategoryDTO> categoryDTOs,
+            List<AdminPlatformDTO> platformDTOs,
+            List<Long> castIds, List<Long> directorIds) {
+
+        List<JobValidationError> errors = new ArrayList<>();
+
+        for (int i = 0; i < categoryDTOs.size(); i++) {
+            AdminCategoryDTO dto = categoryDTOs.get(i);
+            CategoryType categoryType;
+            try {
+                categoryType = CategoryType.fromByType(dto.categoryType());
+                validCategoryByCategoryType(categoryType);
+            } catch (RestApiException e) {
+                errors.add(new JobValidationError(
+                        "categories[" + i + "].categoryType",
+                        dto.categoryType(),
+                        e.getErrorCode().name(),
+                        e.getMessage()));
+                continue;
+            }
+            for (int j = 0; j < dto.genres().size(); j++) {
+                String genreName = dto.genres().get(j);
+                try {
+                    GenreType genreType = GenreType.fromByType(genreName);
+                    validGenreByCategoryTypeAndGenreTypes(categoryType, List.of(genreType));
+                } catch (RestApiException e) {
+                    errors.add(new JobValidationError(
+                            "categories[" + i + "].genres[" + j + "]",
+                            genreName,
+                            e.getErrorCode().name(),
+                            e.getMessage()));
+                }
+            }
+        }
+
+        for (int i = 0; i < platformDTOs.size(); i++) {
+            AdminPlatformDTO dto = platformDTOs.get(i);
+            try {
+                PlatformType platformType = PlatformType.fromByType(dto.platformType());
+                validPlatformByPlatformType(platformType);
+            } catch (RestApiException e) {
+                errors.add(new JobValidationError(
+                        "platforms[" + i + "].platformType",
+                        dto.platformType(),
+                        e.getErrorCode().name(),
+                        e.getMessage()));
+            }
+        }
+
+        for (int i = 0; i < castIds.size(); i++) {
+            Long id = castIds.get(i);
+            try {
+                validCastByCastId(id);
+            } catch (RestApiException e) {
+                errors.add(new JobValidationError(
+                        "casts[" + i + "]",
+                        String.valueOf(id),
+                        e.getErrorCode().name(),
+                        e.getMessage()));
+            }
+        }
+
+        for (int i = 0; i < directorIds.size(); i++) {
+            Long id = directorIds.get(i);
+            try {
+                validDirectorByDirectorId(id);
+            } catch (RestApiException e) {
+                errors.add(new JobValidationError(
+                        "directors[" + i + "]",
+                        String.valueOf(id),
+                        e.getErrorCode().name(),
+                        e.getMessage()));
+            }
+        }
+
+        return errors;
+    }
+
+    public List<JobValidationError> collectContentIdValidationError(Long contentId) {
+        try {
+            validContentByContentId(contentId);
+            return List.of();
+        } catch (RestApiException e) {
+            return List.of(new JobValidationError(
+                    "contentId",
+                    String.valueOf(contentId),
+                    e.getErrorCode().name(),
+                    e.getMessage()));
+        }
     }
 
     private void validCategoryByCategoryType(CategoryType categoryType) {

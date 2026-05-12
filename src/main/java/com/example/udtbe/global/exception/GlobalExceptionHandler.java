@@ -35,6 +35,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return handleExceptionInternal(errorCode);
     }
 
+    @ExceptionHandler(BulkValidationException.class)
+    public ResponseEntity<Object> handleBulkValidation(BulkValidationException e) {
+        MDC.put("status", "400");
+        MDC.put("errorCode", "VALIDATION_ERROR");
+        log.warn("[입력 검증 실패] jobId={}, errors={}", e.getJobId(), e.getErrors().size());
+        return ResponseEntity.badRequest()
+                .body(new BulkValidationErrorResponse(
+                        "VALIDATION_ERROR",
+                        e.getMessage(),
+                        e.getJobId(),
+                        e.getErrors()
+                ));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Object> handleIllegalArgument(IllegalArgumentException e) {
         ErrorCode errorCode = INVALID_PARAMETER;

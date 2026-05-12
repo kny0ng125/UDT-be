@@ -49,6 +49,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.util.StringUtils;
 
+@Deprecated(since = "스트리밍 전환으로 배치 처리 미사용. IntegrityCheckService 및 AdminService 스트리밍 참조.")
 @Configuration
 @EnableConfigurationProperties(BatchProperties.class)
 @Slf4j

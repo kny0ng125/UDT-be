@@ -7,6 +7,7 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.stereotype.Component;
 
+@Deprecated(since = "스트리밍 전환으로 배치 완료 리스너 미사용.")
 @Component
 @RequiredArgsConstructor
 @Slf4j

@@ -10,6 +10,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+@Deprecated(since = "스트리밍 전환으로 배치 Job 완료 리스너 미사용. ContentStreamingEventListener 참조.")
 @Component
 @RequiredArgsConstructor
 @Slf4j

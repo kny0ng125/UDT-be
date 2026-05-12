@@ -2,6 +2,7 @@ package com.example.udtbe.domain.admin.dto.response;
 
 import com.example.udtbe.domain.admin.dto.common.AdminCategoryDTO;
 import com.example.udtbe.domain.admin.dto.common.AdminPlatformDTO;
+import com.example.udtbe.domain.batch.dto.JobValidationError;
 import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +44,8 @@ public record AdminContentRegJobGetDetailResponse(
         String errorCode,
 
         String errorMessage,
+
+        List<JobValidationError> validationErrors,
 
         int retryCount,
 

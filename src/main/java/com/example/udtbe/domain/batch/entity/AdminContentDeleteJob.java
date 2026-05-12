@@ -3,9 +3,11 @@ package com.example.udtbe.domain.batch.entity;
 
 import static lombok.AccessLevel.PRIVATE;
 
+import com.example.udtbe.domain.batch.dto.JobValidationError;
 import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
 import com.example.udtbe.domain.batch.util.TimeUtil;
 import com.example.udtbe.global.entity.TimeBaseEntity;
+import io.hypersistence.utils.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,10 +17,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Type;
 
 @Entity
 @Getter
@@ -45,6 +50,10 @@ public class AdminContentDeleteJob extends TimeBaseEntity {
     private String errorCode;
 
     private String errorMessage;
+
+    @Type(JsonType.class)
+    @Column(name = "validation_errors", columnDefinition = "longtext")
+    private List<JobValidationError> validationErrors = new ArrayList<>();
 
     private int retryCount = 0;
 
@@ -79,6 +88,24 @@ public class AdminContentDeleteJob extends TimeBaseEntity {
     public void setError(String errorCode, String errorMessage) {
         this.errorCode = errorCode;
         this.errorMessage = errorMessage;
+    }
+
+    public void setValidationErrors(List<JobValidationError> validationErrors) {
+        this.validationErrors = validationErrors == null ? new ArrayList<>() : validationErrors;
+    }
+
+    public void clearErrors() {
+        this.errorCode = null;
+        this.errorMessage = null;
+        this.validationErrors = new ArrayList<>();
+    }
+
+    public void resetRetryCount() {
+        this.retryCount = 0;
+    }
+
+    public void updateContentId(Long contentId) {
+        this.contentId = contentId;
     }
 
     public void incrementRetryCount() {

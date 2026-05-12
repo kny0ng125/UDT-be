@@ -14,6 +14,7 @@ import org.springframework.batch.core.StepExecutionListener;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
+@Deprecated(since = "스트리밍 전환으로 배치 스텝 리스너 미사용.")
 @Component
 @RequiredArgsConstructor
 @Slf4j

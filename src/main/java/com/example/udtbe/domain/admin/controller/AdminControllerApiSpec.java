@@ -2,6 +2,7 @@ package com.example.udtbe.domain.admin.controller;
 
 import com.example.udtbe.domain.admin.dto.request.AdminCastsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsRegisterRequest;
+import com.example.udtbe.domain.admin.dto.request.AdminContentDeleteResubmitRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentGetsRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
@@ -84,6 +85,39 @@ public interface AdminControllerApiSpec {
     ResponseEntity<AdminContentDeleteResponse> deleteContent(
             @AuthenticationPrincipal Admin admin,
             @PathVariable(name = "contentId") Long contentId
+    );
+
+    @Operation(summary = "INVALID 등록 Job 재제출", description = "INVALID 상태인 등록 Job을 수정 후 재처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "재처리된 Job ID 반환"),
+            @ApiResponse(responseCode = "400", description = "INVALID 상태가 아니거나 검증 실패")
+    })
+    @PostMapping("/api/admin/contents/registerjob/{jobId}/resubmit")
+    ResponseEntity<AdminContentRegisterResponse> resubmitRegisterJob(
+            @PathVariable(name = "jobId") Long jobId,
+            @Valid @RequestBody AdminContentRegisterRequest request
+    );
+
+    @Operation(summary = "INVALID 수정 Job 재제출", description = "INVALID 상태인 수정 Job을 수정 후 재처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "재처리된 Job ID 반환"),
+            @ApiResponse(responseCode = "400", description = "INVALID 상태가 아니거나 검증 실패")
+    })
+    @PostMapping("/api/admin/contents/updatejob/{jobId}/resubmit")
+    ResponseEntity<AdminContentUpdateResponse> resubmitUpdateJob(
+            @PathVariable(name = "jobId") Long jobId,
+            @Valid @RequestBody AdminContentUpdateRequest request
+    );
+
+    @Operation(summary = "INVALID 삭제 Job 재제출", description = "INVALID 상태인 삭제 Job을 수정된 contentId로 재처리합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "재처리된 Job ID 반환"),
+            @ApiResponse(responseCode = "400", description = "INVALID 상태가 아니거나 검증 실패")
+    })
+    @PostMapping("/api/admin/contents/deletejob/{jobId}/resubmit")
+    ResponseEntity<AdminContentDeleteResponse> resubmitDeleteJob(
+            @PathVariable(name = "jobId") Long jobId,
+            @Valid @RequestBody AdminContentDeleteResubmitRequest request
     );
 
     @Operation(summary = "콘텐츠 목록 조회", description = "커서 기반 페이지네이션으로 콘텐츠 목록을 조회합니다.")
