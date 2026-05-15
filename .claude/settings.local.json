@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew compileTestJava --quiet)",
+      "Bash(./gradlew test *)",
+      "Bash(./gradlew compileJava)",
+      "Bash(./gradlew compileTestJava)",
+      "Bash(openssl version *)",
+      "Bash(./gradlew compileJava --no-daemon)",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}

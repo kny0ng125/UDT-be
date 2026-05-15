@@ -14,15 +14,19 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
-import javax.crypto.SecretKey;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,6 +41,8 @@ import org.springframework.util.StringUtils;
 public class TokenProvider {
 
     private static final String ROLE_KEY = "ROLE";
+    private static final String AUDIENCE_WEB = "web";
+    private static final String AUDIENCE_ADMIN = "admin";
     private static final String[] BLACKLIST = new String[]{"black_list_token"};
     private static final long ACCESS_TOKEN_EXPIRE_TIME = 1000 * 60 * 90L;
     private static final long REFRESH_TOKEN_EXPIRE_TIME = 1000 * 60 * 60 * 24L;
@@ -44,13 +50,29 @@ public class TokenProvider {
     private final AuthQuery authQuery;
     private final RedisUtil redisUtil;
 
-    @Value("${spring.jwt.key}")
-    private String key;
-    private SecretKey secretKey;
+    @Value("${spring.jwt.private-key}")
+    private String privateKeyPem;
+
+    @Value("${spring.jwt.public-key}")
+    private String publicKeyPem;
+
+    private PrivateKey privateKey;
+    private PublicKey publicKey;
 
     @PostConstruct
-    private void initSecretKey() {
-        this.secretKey = Keys.hmacShaKeyFor(key.getBytes());
+    private void initKeys() {
+        if (!StringUtils.hasText(privateKeyPem)) {
+            throw new IllegalStateException("spring.jwt.private-key is required");
+        }
+        if (!StringUtils.hasText(publicKeyPem)) {
+            throw new IllegalStateException("spring.jwt.public-key is required");
+        }
+        try {
+            this.privateKey = parsePrivateKey(privateKeyPem);
+            this.publicKey = parsePublicKey(publicKeyPem);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load RSA keys for JWT", e);
+        }
     }
 
     public String generateAccessToken(Member findMember, CustomOauth2User authentication,
@@ -61,7 +83,7 @@ public class TokenProvider {
     public void generateRefreshToken(Member findMember, CustomOauth2User authentication, Date now) {
         String refreshToken = generateToken(findMember, authentication, REFRESH_TOKEN_EXPIRE_TIME,
                 now);
-        
+
         redisUtil.setValues("RT:" + authentication.getEmail(), refreshToken,
                 Duration.ofMillis(REFRESH_TOKEN_EXPIRE_TIME));
     }
@@ -74,9 +96,10 @@ public class TokenProvider {
         return Jwts.builder()
                 .subject(String.valueOf(findMember.getId()))
                 .claim(ROLE_KEY, authorities)
+                .audience().add(AUDIENCE_WEB).and()
                 .issuedAt(now)
                 .expiration(expiredTime)
-                .signWith(secretKey, Jwts.SIG.HS512)
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -99,9 +122,10 @@ public class TokenProvider {
         return Jwts.builder()
                 .subject(String.valueOf(id))
                 .claim(ROLE_KEY, authorities)
+                .audience().add(AUDIENCE_ADMIN).and()
                 .issuedAt(now)
                 .expiration(expiredTime)
-                .signWith(secretKey, Jwts.SIG.HS512)
+                .signWith(privateKey, Jwts.SIG.RS256)
                 .compact();
     }
 
@@ -150,7 +174,7 @@ public class TokenProvider {
 
     private Claims parseToken(String token) {
         try {
-            return Jwts.parser().verifyWith(secretKey).build()
+            return Jwts.parser().verifyWith(publicKey).build()
                     .parseSignedClaims(token).getPayload();
         } catch (ExpiredJwtException e) {
             return e.getClaims();
@@ -199,6 +223,27 @@ public class TokenProvider {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private PrivateKey parsePrivateKey(String pem) throws Exception {
+        byte[] decoded = decodePem(pem, "PRIVATE KEY");
+        return KeyFactory.getInstance("RSA")
+                .generatePrivate(new PKCS8EncodedKeySpec(decoded));
+    }
+
+    private PublicKey parsePublicKey(String pem) throws Exception {
+        byte[] decoded = decodePem(pem, "PUBLIC KEY");
+        return KeyFactory.getInstance("RSA")
+                .generatePublic(new X509EncodedKeySpec(decoded));
+    }
+
+    private byte[] decodePem(String pem, String label) {
+        String cleaned = pem
+                .replace("\\n", "\n")
+                .replace("-----BEGIN " + label + "-----", "")
+                .replace("-----END " + label + "-----", "")
+                .replaceAll("\\s", "");
+        return Base64.getDecoder().decode(cleaned);
     }
 
 }

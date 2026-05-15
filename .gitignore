@@ -55,4 +55,12 @@ out/
 !/src/main/resources/batch.sql
 !/src/test/resources/batch-test.sql
 
+!/src/test/resources/application-test.yml
+!/src/test/resources/keys/
+!/src/test/resources/keys/test_private.pem
+!/src/test/resources/keys/test_public.pem
+
+*.pem
+!/src/test/resources/keys/test_*.pem
+
 /logs/
