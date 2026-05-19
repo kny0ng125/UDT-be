@@ -80,23 +80,18 @@ import com.example.udtbe.domain.content.repository.ContentPlatformRepository;
 import com.example.udtbe.domain.content.repository.ContentRepository;
 import com.example.udtbe.domain.content.repository.FeedbackStatisticsRepositoryImpl;
 import com.example.udtbe.domain.content.service.FeedbackStatisticsQuery;
-import com.example.udtbe.domain.content.event.ContentStreamingEvent;
-import com.example.udtbe.domain.content.event.ContentStreamingType;
 import com.example.udtbe.domain.member.entity.Member;
 import com.example.udtbe.domain.member.service.MemberQuery;
 import com.example.udtbe.global.dto.CursorPageResponse;
-import com.example.udtbe.global.exception.BulkValidationException;
 import com.example.udtbe.global.exception.RestApiException;
 import com.example.udtbe.global.exception.code.EnumErrorCode;
 import com.example.udtbe.global.log.annotation.LogReturn;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -105,14 +100,16 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AdminService {
 
-    private final AdminContentRegisterJobRepository adminContentRegisterJobRepository;
-    private final AdminContentUpdateJobRepository adminContentUpdateJobRepository;
-    private final AdminContentDeleteJobRepository adminContentDeleteJobRepository;
+//    private final AdminContentRegisterJobRepository adminContentRegisterJobRepository;
+//    private final AdminContentUpdateJobRepository adminContentUpdateJobRepository;
+//    private final AdminContentDeleteJobRepository adminContentDeleteJobRepository;
 
     private final ContentMetadataRepository contentMetadataRepository;
     private final ContentRepository contentRepository;
     private final AdminQuery adminQuery;
-    private final ApplicationEventPublisher eventPublisher;
+    private final StreamingJobExecutor streamingJobExecutor;
+    private final JobTrackingService jobTrackingService;
+    private final ContentTxService contentTxService;
     private final ContentGenreRepository contentGenreRepository;
     private final ContentCategoryRepository contentCategoryRepository;
     private final ContentCastRepository contentCastRepository;
@@ -127,123 +124,97 @@ public class AdminService {
     private final BatchJobMetricRepository batchJobMetricRepository;
 
 
-    @Transactional
     @LogReturn
     public AdminContentRegisterResponse registerBulkContent(Admin admin,
             AdminContentRegisterRequest request) {
-        AdminContentRegisterJob job = AdminContentMapper.toContentRegisterJob(request,
-                admin.getId());
-        job.changeStatus(BatchStatus.PROCESSING);
-        adminContentRegisterJobRepository.save(job);
+        final Long adminId = admin.getId();
+        return streamingJobExecutor.execute(new StreamingJobSpec<AdminContentRegisterResponse>() {
+            @Override
+            public List<JobValidationError> validate() {
+                return adminQuery.collectValidationErrors(
+                        request.categories(), request.platforms(),
+                        request.casts(), request.directors());
+            }
 
-        List<JobValidationError> validationErrors = adminQuery.collectValidationErrors(
-                request.categories(), request.platforms(),
-                request.casts(), request.directors());
+            @Override
+            public Long persistInvalid(List<JobValidationError> errors) {
+                return jobTrackingService.persistRegisterInvalid(null, adminId, request, errors);
+            }
 
-        if (!validationErrors.isEmpty()) {
-            job.changeStatus(BatchStatus.INVALID);
-            job.setError("VALIDATION_ERROR", validationErrors.get(0).message());
-            job.setValidationErrors(validationErrors);
-            job.finish();
-            throw new BulkValidationException(job.getId(), validationErrors);
-        }
+            @Override
+            public AdminContentRegisterResponse processAndComplete() {
+                Long jobId = contentTxService.processRegisterAndComplete(null, adminId, request);
+                return AdminContentMapper.toContentRegisterResponse(jobId);
+            }
 
-        try {
-            Content content = registerContent(request);
-
-            ContentMetadata metadata = adminQuery.findContentMetadataByContentId(content.getId());
-            eventPublisher.publishEvent(ContentStreamingEvent.of(
-                    this, ContentStreamingType.REGISTER, content.getId(), metadata));
-
-            job.changeStatus(BatchStatus.COMPLETED);
-            job.finish();
-        } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
-            job.setError("PROCESSING_ERROR", e.getMessage());
-            job.finish();
-            throw e;
-        }
-
-        return AdminContentMapper.toContentRegisterResponse(job.getId());
+            @Override
+            public Long persistFailed(Exception e) {
+                return jobTrackingService.persistRegisterFailed(null, adminId, request, e);
+            }
+        });
     }
 
-    @Transactional
     @LogReturn
     public AdminContentUpdateResponse updateBulkContent(Admin admin, Long contentId,
             AdminContentUpdateRequest request) {
-        AdminContentUpdateJob job = AdminContentMapper.toContentUpdateJob(request, contentId,
-                admin.getId());
-        job.changeStatus(BatchStatus.PROCESSING);
-        adminContentUpdateJobRepository.save(job);
+        final Long adminId = admin.getId();
+        return streamingJobExecutor.execute(new StreamingJobSpec<AdminContentUpdateResponse>() {
+            @Override
+            public List<JobValidationError> validate() {
+                List<JobValidationError> errors = new ArrayList<>(
+                        adminQuery.collectContentIdValidationError(contentId));
+                errors.addAll(adminQuery.collectValidationErrors(
+                        request.categories(), request.platforms(),
+                        request.casts(), request.directors()));
+                return errors;
+            }
 
-        List<JobValidationError> validationErrors = new ArrayList<>(
-                adminQuery.collectContentIdValidationError(contentId));
-        validationErrors.addAll(adminQuery.collectValidationErrors(
-                request.categories(), request.platforms(),
-                request.casts(), request.directors()));
+            @Override
+            public Long persistInvalid(List<JobValidationError> errors) {
+                return jobTrackingService.persistUpdateInvalid(
+                        null, adminId, contentId, request, errors);
+            }
 
-        if (!validationErrors.isEmpty()) {
-            job.changeStatus(BatchStatus.INVALID);
-            job.setError("VALIDATION_ERROR", validationErrors.get(0).message());
-            job.setValidationErrors(validationErrors);
-            job.finish();
-            throw new BulkValidationException(job.getId(), validationErrors);
-        }
+            @Override
+            public AdminContentUpdateResponse processAndComplete() {
+                Long jobId = contentTxService.processUpdateAndComplete(
+                        null, adminId, contentId, request);
+                return AdminContentMapper.toContentUpdateResponse(jobId);
+            }
 
-        try {
-            updateContent(contentId, request);
-
-            ContentMetadata metadata = adminQuery.findContentMetadataByContentId(contentId);
-            eventPublisher.publishEvent(ContentStreamingEvent.of(
-                    this, ContentStreamingType.UPDATE, contentId, metadata));
-
-            job.changeStatus(BatchStatus.COMPLETED);
-            job.finish();
-        } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
-            job.setError("PROCESSING_ERROR", e.getMessage());
-            job.finish();
-            throw e;
-        }
-
-        return AdminContentMapper.toContentUpdateResponse(job.getId());
+            @Override
+            public Long persistFailed(Exception e) {
+                return jobTrackingService.persistUpdateFailed(
+                        null, adminId, contentId, request, e);
+            }
+        });
     }
 
-    @Transactional
     @LogReturn
     public AdminContentDeleteResponse deleteBulkContent(Admin admin, Long contentId) {
-        AdminContentDeleteJob job = AdminContentMapper.toContentDeleteJob(contentId,
-                admin.getId());
-        job.changeStatus(BatchStatus.PROCESSING);
-        adminContentDeleteJobRepository.save(job);
+        final Long adminId = admin.getId();
+        return streamingJobExecutor.execute(new StreamingJobSpec<AdminContentDeleteResponse>() {
+            @Override
+            public List<JobValidationError> validate() {
+                return adminQuery.collectContentIdValidationError(contentId);
+            }
 
-        List<JobValidationError> validationErrors = adminQuery.collectContentIdValidationError(
-                contentId);
+            @Override
+            public Long persistInvalid(List<JobValidationError> errors) {
+                return jobTrackingService.persistDeleteInvalid(null, adminId, contentId, errors);
+            }
 
-        if (!validationErrors.isEmpty()) {
-            job.changeStatus(BatchStatus.INVALID);
-            job.setError("VALIDATION_ERROR", validationErrors.get(0).message());
-            job.setValidationErrors(validationErrors);
-            job.finish();
-            throw new BulkValidationException(job.getId(), validationErrors);
-        }
+            @Override
+            public AdminContentDeleteResponse processAndComplete() {
+                Long jobId = contentTxService.processDeleteAndComplete(null, adminId, contentId);
+                return AdminContentMapper.toContentDeleteResponse(jobId);
+            }
 
-        try {
-            deleteContent(contentId);
-
-            eventPublisher.publishEvent(ContentStreamingEvent.of(
-                    this, ContentStreamingType.DELETE, contentId, null));
-
-            job.changeStatus(BatchStatus.COMPLETED);
-            job.finish();
-        } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
-            job.setError("PROCESSING_ERROR", e.getMessage());
-            job.finish();
-            throw e;
-        }
-
-        return AdminContentMapper.toContentDeleteResponse(job.getId());
+            @Override
+            public Long persistFailed(Exception e) {
+                return jobTrackingService.persistDeleteFailed(null, adminId, contentId, e);
+            }
+        });
     }
 
 
@@ -582,151 +553,107 @@ public class AdminService {
         return AdminContentMapper.initBatchJobMetric(type);
     }
 
-    @Transactional
     public AdminContentRegisterResponse resubmitRegisterJob(Long jobId,
             AdminContentRegisterRequest request) {
-        AdminContentRegisterJob job = adminQuery.findAdminContentRegisterJobById(jobId);
-        if (job.getStatus() != BatchStatus.INVALID) {
+        AdminContentRegisterJob guard = adminQuery.findAdminContentRegisterJobById(jobId);
+        if (guard.getStatus() != BatchStatus.INVALID) {
             throw new RestApiException(EnumErrorCode.BATCH_STATUS_BAD_REQUEST);
         }
+        final Long adminId = guard.getAdminId();
+        return streamingJobExecutor.execute(new StreamingJobSpec<AdminContentRegisterResponse>() {
+            @Override
+            public List<JobValidationError> validate() {
+                return adminQuery.collectValidationErrors(
+                        request.categories(), request.platforms(),
+                        request.casts(), request.directors());
+            }
 
-        Map<String, AdminCategoryDTO> categoryMap = new HashMap<>();
-        request.categories().forEach(dto -> categoryMap.put(dto.categoryType(), dto));
-        Map<String, AdminPlatformDTO> platformMap = new HashMap<>();
-        request.platforms().forEach(dto -> platformMap.put(dto.platformType(), dto));
+            @Override
+            public Long persistInvalid(List<JobValidationError> errors) {
+                return jobTrackingService.persistRegisterInvalid(jobId, adminId, request, errors);
+            }
 
-        job.updateFields(request.title(), request.description(), request.posterUrl(),
-                request.backdropUrl(), request.trailerUrl(), request.openDate(),
-                request.runningTime(), request.episode(), request.rating(),
-                categoryMap, platformMap, request.directors(), request.casts(),
-                request.countries());
-        job.clearErrors();
-        job.resetRetryCount();
-        job.changeStatus(BatchStatus.PROCESSING);
+            @Override
+            public AdminContentRegisterResponse processAndComplete() {
+                Long id = contentTxService.processRegisterAndComplete(jobId, adminId, request);
+                return AdminContentMapper.toContentRegisterResponse(id);
+            }
 
-        List<JobValidationError> validationErrors = adminQuery.collectValidationErrors(
-                request.categories(), request.platforms(),
-                request.casts(), request.directors());
-
-        if (!validationErrors.isEmpty()) {
-            job.changeStatus(BatchStatus.INVALID);
-            job.setError("VALIDATION_ERROR", validationErrors.get(0).message());
-            job.setValidationErrors(validationErrors);
-            job.finish();
-            throw new BulkValidationException(job.getId(), validationErrors);
-        }
-
-        try {
-            Content content = registerContent(request);
-            ContentMetadata metadata = adminQuery.findContentMetadataByContentId(content.getId());
-            eventPublisher.publishEvent(ContentStreamingEvent.of(
-                    this, ContentStreamingType.REGISTER, content.getId(), metadata));
-
-            job.changeStatus(BatchStatus.COMPLETED);
-            job.finish();
-        } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
-            job.setError("PROCESSING_ERROR", e.getMessage());
-            job.finish();
-            throw e;
-        }
-
-        return AdminContentMapper.toContentRegisterResponse(job.getId());
+            @Override
+            public Long persistFailed(Exception e) {
+                return jobTrackingService.persistRegisterFailed(jobId, adminId, request, e);
+            }
+        });
     }
 
-    @Transactional
     public AdminContentUpdateResponse resubmitUpdateJob(Long jobId,
             AdminContentUpdateRequest request) {
-        AdminContentUpdateJob job = adminQuery.findAdminContentUpdateJobById(jobId);
-        if (job.getStatus() != BatchStatus.INVALID) {
+        AdminContentUpdateJob guard = adminQuery.findAdminContentUpdateJobById(jobId);
+        if (guard.getStatus() != BatchStatus.INVALID) {
             throw new RestApiException(EnumErrorCode.BATCH_STATUS_BAD_REQUEST);
         }
+        final Long adminId = guard.getAdminId();
+        final Long contentId = guard.getContentId();
+        return streamingJobExecutor.execute(new StreamingJobSpec<AdminContentUpdateResponse>() {
+            @Override
+            public List<JobValidationError> validate() {
+                List<JobValidationError> errors = new ArrayList<>(
+                        adminQuery.collectContentIdValidationError(contentId));
+                errors.addAll(adminQuery.collectValidationErrors(
+                        request.categories(), request.platforms(),
+                        request.casts(), request.directors()));
+                return errors;
+            }
 
-        Map<String, AdminCategoryDTO> categoryMap = new HashMap<>();
-        request.categories().forEach(dto -> categoryMap.put(dto.categoryType(), dto));
-        Map<String, AdminPlatformDTO> platformMap = new HashMap<>();
-        request.platforms().forEach(dto -> platformMap.put(dto.platformType(), dto));
+            @Override
+            public Long persistInvalid(List<JobValidationError> errors) {
+                return jobTrackingService.persistUpdateInvalid(
+                        jobId, adminId, contentId, request, errors);
+            }
 
-        job.updateFields(request.title(), request.description(), request.posterUrl(),
-                request.backdropUrl(), request.trailerUrl(), request.openDate(),
-                request.runningTime(), request.episode(), request.rating(),
-                categoryMap, platformMap, request.directors(), request.casts(),
-                request.countries());
-        job.clearErrors();
-        job.resetRetryCount();
-        job.changeStatus(BatchStatus.PROCESSING);
+            @Override
+            public AdminContentUpdateResponse processAndComplete() {
+                Long id = contentTxService.processUpdateAndComplete(
+                        jobId, adminId, contentId, request);
+                return AdminContentMapper.toContentUpdateResponse(id);
+            }
 
-        Long contentId = job.getContentId();
-        List<JobValidationError> validationErrors = new ArrayList<>(
-                adminQuery.collectContentIdValidationError(contentId));
-        validationErrors.addAll(adminQuery.collectValidationErrors(
-                request.categories(), request.platforms(),
-                request.casts(), request.directors()));
-
-        if (!validationErrors.isEmpty()) {
-            job.changeStatus(BatchStatus.INVALID);
-            job.setError("VALIDATION_ERROR", validationErrors.get(0).message());
-            job.setValidationErrors(validationErrors);
-            job.finish();
-            throw new BulkValidationException(job.getId(), validationErrors);
-        }
-
-        try {
-            updateContent(contentId, request);
-            ContentMetadata metadata = adminQuery.findContentMetadataByContentId(contentId);
-            eventPublisher.publishEvent(ContentStreamingEvent.of(
-                    this, ContentStreamingType.UPDATE, contentId, metadata));
-
-            job.changeStatus(BatchStatus.COMPLETED);
-            job.finish();
-        } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
-            job.setError("PROCESSING_ERROR", e.getMessage());
-            job.finish();
-            throw e;
-        }
-
-        return AdminContentMapper.toContentUpdateResponse(job.getId());
+            @Override
+            public Long persistFailed(Exception e) {
+                return jobTrackingService.persistUpdateFailed(
+                        jobId, adminId, contentId, request, e);
+            }
+        });
     }
 
-    @Transactional
     public AdminContentDeleteResponse resubmitDeleteJob(Long jobId, Long contentId) {
-        AdminContentDeleteJob job = adminQuery.findAdminContentDelJobById(jobId);
-        if (job.getStatus() != BatchStatus.INVALID) {
+        AdminContentDeleteJob guard = adminQuery.findAdminContentDelJobById(jobId);
+        if (guard.getStatus() != BatchStatus.INVALID) {
             throw new RestApiException(EnumErrorCode.BATCH_STATUS_BAD_REQUEST);
         }
+        final Long adminId = guard.getAdminId();
+        return streamingJobExecutor.execute(new StreamingJobSpec<AdminContentDeleteResponse>() {
+            @Override
+            public List<JobValidationError> validate() {
+                return adminQuery.collectContentIdValidationError(contentId);
+            }
 
-        job.updateContentId(contentId);
-        job.clearErrors();
-        job.resetRetryCount();
-        job.changeStatus(BatchStatus.PROCESSING);
+            @Override
+            public Long persistInvalid(List<JobValidationError> errors) {
+                return jobTrackingService.persistDeleteInvalid(jobId, adminId, contentId, errors);
+            }
 
-        List<JobValidationError> validationErrors = adminQuery.collectContentIdValidationError(
-                contentId);
+            @Override
+            public AdminContentDeleteResponse processAndComplete() {
+                Long id = contentTxService.processDeleteAndComplete(jobId, adminId, contentId);
+                return AdminContentMapper.toContentDeleteResponse(id);
+            }
 
-        if (!validationErrors.isEmpty()) {
-            job.changeStatus(BatchStatus.INVALID);
-            job.setError("VALIDATION_ERROR", validationErrors.get(0).message());
-            job.setValidationErrors(validationErrors);
-            job.finish();
-            throw new BulkValidationException(job.getId(), validationErrors);
-        }
-
-        try {
-            deleteContent(contentId);
-            eventPublisher.publishEvent(ContentStreamingEvent.of(
-                    this, ContentStreamingType.DELETE, contentId, null));
-
-            job.changeStatus(BatchStatus.COMPLETED);
-            job.finish();
-        } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
-            job.setError("PROCESSING_ERROR", e.getMessage());
-            job.finish();
-            throw e;
-        }
-
-        return AdminContentMapper.toContentDeleteResponse(job.getId());
+            @Override
+            public Long persistFailed(Exception e) {
+                return jobTrackingService.persistDeleteFailed(jobId, adminId, contentId, e);
+            }
+        });
     }
 
     @Transactional

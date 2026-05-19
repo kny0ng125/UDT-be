@@ -77,7 +77,11 @@ public class ContentRecommendationQuery {
             return Collections.emptyList();
         }
         try {
-            return contentRepository.findAllById(contentIds);
+            // soft-deleted 콘텐츠는 추천에서 제외한다. findAllById는 isDeleted를 거르지 않으므로,
+            // 삭제 전 계산돼 회원 캐시에 남은 항목이 응답에 노출되는 것을 여기서 차단한다.
+            return contentRepository.findAllById(contentIds).stream()
+                    .filter(content -> !content.isDeleted())
+                    .toList();
         } catch (Exception e) {
             log.warn("컨텐츠 조회 실패: error={}", e.getMessage());
             throw new RestApiException(RecommendContentErrorCode.CONTENT_BATCH_RETRIEVAL_ERROR);

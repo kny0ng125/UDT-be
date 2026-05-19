@@ -3,9 +3,7 @@ package com.example.udtbe.admin.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -14,83 +12,47 @@ import static org.mockito.Mockito.verify;
 import com.example.udtbe.domain.admin.dto.common.AdminCategoryDTO;
 import com.example.udtbe.domain.admin.dto.common.AdminPlatformDTO;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
+import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
 import com.example.udtbe.domain.admin.dto.response.AdminContentDeleteResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminContentRegisterResponse;
+import com.example.udtbe.domain.admin.dto.response.AdminContentUpdateResponse;
 import com.example.udtbe.domain.admin.service.AdminQuery;
 import com.example.udtbe.domain.admin.service.AdminService;
+import com.example.udtbe.domain.admin.service.ContentTxService;
+import com.example.udtbe.domain.admin.service.JobTrackingService;
+import com.example.udtbe.domain.admin.service.StreamingJobExecutor;
+import com.example.udtbe.domain.admin.service.StreamingJobSpec;
 import com.example.udtbe.domain.batch.dto.JobValidationError;
 import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
 import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
 import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
-import com.example.udtbe.domain.batch.repository.BatchJobMetricRepository;
-import com.example.udtbe.domain.content.entity.Cast;
-import com.example.udtbe.domain.content.entity.Category;
-import com.example.udtbe.domain.content.entity.Content;
-import com.example.udtbe.domain.content.entity.ContentMetadata;
-import com.example.udtbe.domain.content.entity.Country;
-import com.example.udtbe.domain.content.entity.Director;
-import com.example.udtbe.domain.content.entity.Genre;
-import com.example.udtbe.domain.content.entity.Platform;
-import com.example.udtbe.domain.content.entity.enums.CategoryType;
-import com.example.udtbe.domain.content.entity.enums.GenreType;
-import com.example.udtbe.domain.content.entity.enums.PlatformType;
-import com.example.udtbe.domain.content.event.ContentStreamingEvent;
-import com.example.udtbe.domain.content.event.ContentStreamingType;
-import com.example.udtbe.domain.content.repository.ContentCastRepository;
-import com.example.udtbe.domain.content.repository.ContentCategoryRepository;
-import com.example.udtbe.domain.content.repository.ContentCountryRepository;
-import com.example.udtbe.domain.content.repository.ContentDirectorRepository;
-import com.example.udtbe.domain.content.repository.ContentGenreRepository;
-import com.example.udtbe.domain.content.repository.ContentMetadataRepository;
-import com.example.udtbe.domain.content.repository.ContentPlatformRepository;
-import com.example.udtbe.domain.content.repository.ContentRepository;
-import com.example.udtbe.global.exception.BulkValidationException;
 import com.example.udtbe.global.exception.RestApiException;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
+/**
+ * 재제출(P0) 단위 검증: (1) INVALID 가드가 executor 진입 전 선검사로 동작하는지,
+ * (2) 조립된 spec이 기존 jobId를 그대로 협력자에 전달하는지.
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminServiceResubmitTest {
 
     @Mock
-    private AdminContentRegisterJobRepository adminContentRegisterJobRepository;
+    private StreamingJobExecutor streamingJobExecutor;
     @Mock
-    private AdminContentUpdateJobRepository adminContentUpdateJobRepository;
+    private JobTrackingService jobTrackingService;
     @Mock
-    private AdminContentDeleteJobRepository adminContentDeleteJobRepository;
-    @Mock
-    private ContentMetadataRepository contentMetadataRepository;
-    @Mock
-    private ContentRepository contentRepository;
+    private ContentTxService contentTxService;
     @Mock
     private AdminQuery adminQuery;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
-    @Mock
-    private ContentGenreRepository contentGenreRepository;
-    @Mock
-    private ContentCategoryRepository contentCategoryRepository;
-    @Mock
-    private ContentCastRepository contentCastRepository;
-    @Mock
-    private ContentCountryRepository contentCountryRepository;
-    @Mock
-    private ContentPlatformRepository contentPlatformRepository;
-    @Mock
-    private ContentDirectorRepository contentDirectorRepository;
-    @Mock
-    private BatchJobMetricRepository batchJobMetricRepository;
 
     @InjectMocks
     private AdminService adminService;
@@ -109,125 +71,128 @@ class AdminServiceResubmitTest {
         );
     }
 
-    private AdminContentRegisterJob invalidRegisterJob() {
-        AdminContentRegisterJob job = mock(AdminContentRegisterJob.class);
-        given(job.getId()).willReturn(100L);
-        given(job.getStatus()).willReturn(BatchStatus.INVALID);
-        return job;
+    private AdminContentUpdateRequest updateRequest() {
+        return new AdminContentUpdateRequest(
+                "수정 제목", "수정 설명",
+                "https://poster2", "https://backdrop2", "https://trailer2",
+                LocalDateTime.of(2025, 7, 12, 0, 0),
+                130, 1, "15세 관람가",
+                List.of(new AdminCategoryDTO("영화", List.of("액션"))),
+                List.of("미국"),
+                List.of(1L),
+                List.of(1L),
+                List.of(new AdminPlatformDTO("왓챠", "https://watch2"))
+        );
     }
 
-    @DisplayName("resubmitRegisterJob: INVALID Job을 수정된 데이터로 재처리하면 COMPLETED + 이벤트 발행")
-    @Test
-    void resubmitRegisterJob_success() {
-        // given
-        AdminContentRegisterJob job = invalidRegisterJob();
-        given(adminQuery.findAdminContentRegisterJobById(100L)).willReturn(job);
-
-        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
-                .willReturn(Collections.emptyList());
-
-        Content saved = mock(Content.class);
-        given(saved.getId()).willReturn(42L);
-        given(contentRepository.save(any(Content.class))).willReturn(saved);
-
-        Category category = mock(Category.class);
-        given(adminQuery.findByCategoryType(any(CategoryType.class))).willReturn(category);
-        given(adminQuery.findByGenreTypeAndCategory(any(GenreType.class), any(Category.class)))
-                .willReturn(mock(Genre.class));
-        given(adminQuery.findCastByCastId(anyLong())).willReturn(mock(Cast.class));
-        given(adminQuery.findDirectorByDirectorId(anyLong())).willReturn(mock(Director.class));
-        given(adminQuery.findOrSaveCountry(anyString())).willReturn(mock(Country.class));
-        given(adminQuery.findByPlatform(any(PlatformType.class))).willReturn(mock(Platform.class));
-        given(contentMetadataRepository.save(any(ContentMetadata.class)))
-                .willAnswer(inv -> inv.getArgument(0));
-
-        ContentMetadata metadata = mock(ContentMetadata.class);
-        given(adminQuery.findContentMetadataByContentId(42L)).willReturn(metadata);
-
-        // when
-        AdminContentRegisterResponse response =
-                adminService.resubmitRegisterJob(100L, registerRequest());
-
-        // then
-        verify(job).clearErrors();
-        verify(job).resetRetryCount();
-        verify(job).updateFields(any(), any(), any(), any(), any(), any(),
-                anyInt(), anyInt(), any(), any(), any(), any(), any(), any());
-        verify(job).changeStatus(BatchStatus.PROCESSING);
-        verify(job).changeStatus(BatchStatus.COMPLETED);
-        verify(eventPublisher).publishEvent(any(ContentStreamingEvent.class));
-        assertThat(response).isNotNull();
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private StreamingJobSpec captureSpec() {
+        ArgumentCaptor<StreamingJobSpec> captor = ArgumentCaptor.forClass(StreamingJobSpec.class);
+        verify(streamingJobExecutor).execute(captor.capture());
+        return captor.getValue();
     }
 
-    @DisplayName("resubmitRegisterJob: INVALID 상태가 아니면 RestApiException")
+    @DisplayName("resubmitRegisterJob: INVALID 상태가 아니면 RestApiException + executor 미진입")
     @Test
     void resubmitRegisterJob_notInvalidStatus() {
-        // given
         AdminContentRegisterJob job = mock(AdminContentRegisterJob.class);
         given(job.getStatus()).willReturn(BatchStatus.COMPLETED);
         given(adminQuery.findAdminContentRegisterJobById(100L)).willReturn(job);
 
-        // when & then
         assertThatThrownBy(() -> adminService.resubmitRegisterJob(100L, registerRequest()))
                 .isInstanceOf(RestApiException.class);
 
-        verify(eventPublisher, never()).publishEvent(any(ContentStreamingEvent.class));
+        verify(streamingJobExecutor, never()).execute(any());
     }
 
-    @DisplayName("resubmitRegisterJob: 재제출 후에도 검증 실패하면 다시 INVALID로 마킹 + BulkValidationException")
+    @DisplayName("resubmitRegisterJob: INVALID면 기존 jobId를 그대로 등록 협력자에 위임한다")
     @Test
-    void resubmitRegisterJob_validationFailsAgain() {
-        // given
-        AdminContentRegisterJob job = invalidRegisterJob();
+    @SuppressWarnings("unchecked")
+    void resubmitRegisterJob_delegatesWithJobId() {
+        AdminContentRegisterJob job = mock(AdminContentRegisterJob.class);
+        given(job.getStatus()).willReturn(BatchStatus.INVALID);
+        given(job.getAdminId()).willReturn(1L);
         given(adminQuery.findAdminContentRegisterJobById(100L)).willReturn(job);
 
-        JobValidationError error = new JobValidationError(
-                "platforms[0].platformType", "BadPlatform",
-                "PLATFORM_TYPE_BAD_REQUEST", "올바르지 않은 플랫폼 타입입니다.");
-        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
-                .willReturn(List.of(error));
+        AdminContentRegisterRequest req = registerRequest();
+        AdminContentRegisterResponse expected = new AdminContentRegisterResponse(100L);
+        given(streamingJobExecutor.execute(any())).willReturn(expected);
 
-        // when & then
-        assertThatThrownBy(() -> adminService.resubmitRegisterJob(100L, registerRequest()))
-                .isInstanceOf(BulkValidationException.class)
-                .extracting("errors")
-                .asList()
-                .hasSize(1);
+        AdminContentRegisterResponse actual = adminService.resubmitRegisterJob(100L, req);
+        assertThat(actual).isSameAs(expected);
 
-        verify(job).setValidationErrors(List.of(error));
-        verify(job).changeStatus(BatchStatus.INVALID);
-        verify(eventPublisher, never()).publishEvent(any(ContentStreamingEvent.class));
+        StreamingJobSpec<AdminContentRegisterResponse> spec = captureSpec();
+
+        List<JobValidationError> errs = List.of();
+        given(adminQuery.collectValidationErrors(any(), any(), any(), any())).willReturn(errs);
+        assertThat(spec.validate()).isSameAs(errs);
+
+        given(jobTrackingService.persistRegisterInvalid(eq(100L), eq(1L), eq(req), eq(errs)))
+                .willReturn(100L);
+        assertThat(spec.persistInvalid(errs)).isEqualTo(100L);
+
+        given(contentTxService.processRegisterAndComplete(eq(100L), eq(1L), eq(req)))
+                .willReturn(100L);
+        assertThat(spec.processAndComplete().registerJobId()).isEqualTo(100L);
     }
 
-    @DisplayName("resubmitDeleteJob: 새 contentId로 INVALID Job 재처리 시 COMPLETED + 이벤트 발행")
+    @DisplayName("resubmitUpdateJob: 기존 jobId/contentId를 그대로 수정 협력자에 위임한다")
     @Test
-    void resubmitDeleteJob_success() {
-        // given
-        AdminContentDeleteJob job = mock(AdminContentDeleteJob.class);
-        given(job.getId()).willReturn(300L);
+    @SuppressWarnings("unchecked")
+    void resubmitUpdateJob_delegatesWithJobId() {
+        AdminContentUpdateJob job = mock(AdminContentUpdateJob.class);
         given(job.getStatus()).willReturn(BatchStatus.INVALID);
+        given(job.getAdminId()).willReturn(1L);
+        given(job.getContentId()).willReturn(5L);
+        given(adminQuery.findAdminContentUpdateJobById(200L)).willReturn(job);
+
+        AdminContentUpdateRequest req = updateRequest();
+        AdminContentUpdateResponse expected = new AdminContentUpdateResponse(200L);
+        given(streamingJobExecutor.execute(any())).willReturn(expected);
+
+        AdminContentUpdateResponse actual = adminService.resubmitUpdateJob(200L, req);
+        assertThat(actual).isSameAs(expected);
+
+        StreamingJobSpec<AdminContentUpdateResponse> spec = captureSpec();
+
+        given(adminQuery.collectContentIdValidationError(5L)).willReturn(List.of());
+        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
+                .willReturn(List.of());
+        assertThat(spec.validate()).isEmpty();
+
+        given(contentTxService.processUpdateAndComplete(eq(200L), eq(1L), eq(5L), eq(req)))
+                .willReturn(200L);
+        assertThat(spec.processAndComplete().updateJobId()).isEqualTo(200L);
+    }
+
+    @DisplayName("resubmitDeleteJob: 새 contentId와 기존 jobId를 삭제 협력자에 위임한다")
+    @Test
+    @SuppressWarnings("unchecked")
+    void resubmitDeleteJob_delegatesWithJobId() {
+        AdminContentDeleteJob job = mock(AdminContentDeleteJob.class);
+        given(job.getStatus()).willReturn(BatchStatus.INVALID);
+        given(job.getAdminId()).willReturn(1L);
         given(adminQuery.findAdminContentDelJobById(300L)).willReturn(job);
 
         Long newContentId = 50L;
-        Content content = mock(Content.class);
-        ContentMetadata metadata = mock(ContentMetadata.class);
-        given(adminQuery.collectContentIdValidationError(newContentId))
-                .willReturn(Collections.emptyList());
-        given(adminQuery.findAndValidContentByContentId(newContentId)).willReturn(content);
-        given(adminQuery.findContentMetadataByContentId(newContentId)).willReturn(metadata);
+        AdminContentDeleteResponse expected = new AdminContentDeleteResponse(300L);
+        given(streamingJobExecutor.execute(any())).willReturn(expected);
 
-        // when
-        AdminContentDeleteResponse response =
-                adminService.resubmitDeleteJob(300L, newContentId);
+        AdminContentDeleteResponse actual = adminService.resubmitDeleteJob(300L, newContentId);
+        assertThat(actual).isSameAs(expected);
 
-        // then
-        verify(job).updateContentId(newContentId);
-        verify(job).clearErrors();
-        verify(job).resetRetryCount();
-        verify(job).changeStatus(BatchStatus.COMPLETED);
-        verify(content).delete(true);
-        verify(eventPublisher).publishEvent(any(ContentStreamingEvent.class));
-        assertThat(response).isNotNull();
+        StreamingJobSpec<AdminContentDeleteResponse> spec = captureSpec();
+
+        List<JobValidationError> errs = List.of();
+        given(adminQuery.collectContentIdValidationError(newContentId)).willReturn(errs);
+        assertThat(spec.validate()).isSameAs(errs);
+
+        given(jobTrackingService.persistDeleteInvalid(eq(300L), eq(1L), eq(newContentId), eq(errs)))
+                .willReturn(300L);
+        assertThat(spec.persistInvalid(errs)).isEqualTo(300L);
+
+        given(contentTxService.processDeleteAndComplete(eq(300L), eq(1L), eq(newContentId)))
+                .willReturn(300L);
+        assertThat(spec.processAndComplete().deleteJobId()).isEqualTo(300L);
     }
-
 }

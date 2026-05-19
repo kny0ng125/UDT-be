@@ -1,14 +1,11 @@
 package com.example.udtbe.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.example.udtbe.domain.admin.dto.common.AdminCategoryDTO;
@@ -21,37 +18,11 @@ import com.example.udtbe.domain.admin.dto.response.AdminContentUpdateResponse;
 import com.example.udtbe.domain.admin.entity.Admin;
 import com.example.udtbe.domain.admin.service.AdminQuery;
 import com.example.udtbe.domain.admin.service.AdminService;
+import com.example.udtbe.domain.admin.service.ContentTxService;
+import com.example.udtbe.domain.admin.service.JobTrackingService;
+import com.example.udtbe.domain.admin.service.StreamingJobExecutor;
+import com.example.udtbe.domain.admin.service.StreamingJobSpec;
 import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
-import com.example.udtbe.domain.content.entity.Cast;
-import com.example.udtbe.domain.content.entity.Category;
-import com.example.udtbe.domain.content.entity.Content;
-import com.example.udtbe.domain.content.entity.ContentMetadata;
-import com.example.udtbe.domain.content.entity.Country;
-import com.example.udtbe.domain.content.entity.Director;
-import com.example.udtbe.domain.content.entity.Genre;
-import com.example.udtbe.domain.content.entity.Platform;
-import com.example.udtbe.domain.content.entity.enums.CategoryType;
-import com.example.udtbe.domain.content.entity.enums.GenreType;
-import com.example.udtbe.domain.content.entity.enums.PlatformType;
-import com.example.udtbe.domain.content.event.ContentStreamingEvent;
-import com.example.udtbe.domain.content.event.ContentStreamingType;
-import com.example.udtbe.domain.content.repository.ContentCastRepository;
-import com.example.udtbe.domain.content.repository.ContentCategoryRepository;
-import com.example.udtbe.domain.content.repository.ContentCountryRepository;
-import com.example.udtbe.domain.content.repository.ContentDirectorRepository;
-import com.example.udtbe.domain.content.repository.ContentGenreRepository;
-import com.example.udtbe.domain.content.repository.ContentMetadataRepository;
-import com.example.udtbe.domain.content.repository.ContentPlatformRepository;
-import com.example.udtbe.domain.content.repository.ContentRepository;
-import com.example.udtbe.global.exception.BulkValidationException;
-import java.util.Collections;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,38 +33,25 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.test.util.ReflectionTestUtils;
 
+/**
+ * 스트리밍 전환(P0) 이후 단위 검증.
+ *
+ * <p>실제 트랜잭션 격리(INVALID/FAILED 행이 롤백돼도 실존)는 통합테스트(B, 추후)에서 검증한다.
+ * 여기서는 (1) AdminService가 executor에 위임하는지, (2) 조립된 spec이 타입별로 올바른
+ * 협력자({@link JobTrackingService}/{@link ContentTxService})에 위임하는지만 단위로 확인한다.</p>
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminServiceStreamingTest {
 
     @Mock
-    private AdminContentRegisterJobRepository adminContentRegisterJobRepository;
+    private StreamingJobExecutor streamingJobExecutor;
     @Mock
-    private AdminContentUpdateJobRepository adminContentUpdateJobRepository;
+    private JobTrackingService jobTrackingService;
     @Mock
-    private AdminContentDeleteJobRepository adminContentDeleteJobRepository;
-    @Mock
-    private ContentMetadataRepository contentMetadataRepository;
-    @Mock
-    private ContentRepository contentRepository;
+    private ContentTxService contentTxService;
     @Mock
     private AdminQuery adminQuery;
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
-    @Mock
-    private ContentGenreRepository contentGenreRepository;
-    @Mock
-    private ContentCategoryRepository contentCategoryRepository;
-    @Mock
-    private ContentCastRepository contentCastRepository;
-    @Mock
-    private ContentCountryRepository contentCountryRepository;
-    @Mock
-    private ContentPlatformRepository contentPlatformRepository;
-    @Mock
-    private ContentDirectorRepository contentDirectorRepository;
 
     @InjectMocks
     private AdminService adminService;
@@ -132,226 +90,100 @@ class AdminServiceStreamingTest {
         );
     }
 
-    @DisplayName("registerBulkContent: 성공 시 Job이 COMPLETED 상태이며 REGISTER 이벤트를 발행한다")
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private StreamingJobSpec captureSpec() {
+        ArgumentCaptor<StreamingJobSpec> captor = ArgumentCaptor.forClass(StreamingJobSpec.class);
+        verify(streamingJobExecutor).execute(captor.capture());
+        return captor.getValue();
+    }
+
+    @DisplayName("registerBulkContent: executor에 위임하고, spec은 신규(jobId=null) 등록 협력자로 위임한다")
     @Test
-    void registerBulkContent_success() {
-        // given
-        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
-                .willReturn(Collections.emptyList());
+    @SuppressWarnings("unchecked")
+    void registerBulkContent_delegatesAndWiresSpec() {
+        AdminContentRegisterResponse expected = new AdminContentRegisterResponse(100L);
+        given(streamingJobExecutor.execute(any())).willReturn(expected);
 
-        Content saved = mock(Content.class);
-        given(saved.getId()).willReturn(42L);
-        given(contentRepository.save(any(Content.class))).willReturn(saved);
-
-        Category category = mock(Category.class);
-        given(adminQuery.findByCategoryType(any(CategoryType.class))).willReturn(category);
-        given(adminQuery.findByGenreTypeAndCategory(any(GenreType.class), any(Category.class)))
-                .willReturn(mock(Genre.class));
-        given(adminQuery.findCastByCastId(anyLong())).willReturn(mock(Cast.class));
-        given(adminQuery.findDirectorByDirectorId(anyLong())).willReturn(mock(Director.class));
-        given(adminQuery.findOrSaveCountry(anyString())).willReturn(mock(Country.class));
-        given(adminQuery.findByPlatform(any(PlatformType.class))).willReturn(mock(Platform.class));
-        given(contentMetadataRepository.save(any(ContentMetadata.class)))
-                .willAnswer(inv -> inv.getArgument(0));
-
-        ContentMetadata metadata = mock(ContentMetadata.class);
-        given(adminQuery.findContentMetadataByContentId(42L)).willReturn(metadata);
-
-        ArgumentCaptor<AdminContentRegisterJob> jobCaptor =
-                ArgumentCaptor.forClass(AdminContentRegisterJob.class);
-        given(adminContentRegisterJobRepository.save(jobCaptor.capture()))
-                .willAnswer(inv -> {
-                    AdminContentRegisterJob j = inv.getArgument(0);
-                    ReflectionTestUtils.setField(j, "id", 100L);
-                    return j;
-                });
-
-        ArgumentCaptor<ContentStreamingEvent> eventCaptor =
-                ArgumentCaptor.forClass(ContentStreamingEvent.class);
-
-        // when
-        AdminContentRegisterResponse response =
+        AdminContentRegisterResponse actual =
                 adminService.registerBulkContent(admin, registerRequest);
 
-        // then
-        verify(adminQuery).collectValidationErrors(any(), any(), any(), any());
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(actual).isSameAs(expected);
 
-        ContentStreamingEvent event = eventCaptor.getValue();
-        assertThat(event.getType()).isEqualTo(ContentStreamingType.REGISTER);
-        assertThat(event.getContentId()).isEqualTo(42L);
-        assertThat(event.getMetadata()).isSameAs(metadata);
+        StreamingJobSpec<AdminContentRegisterResponse> spec = captureSpec();
 
-        AdminContentRegisterJob savedJob = jobCaptor.getValue();
-        assertThat(savedJob.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-        assertThat(savedJob.getFinishedAt()).isNotNull();
-        assertThat(response).isNotNull();
+        List<JobValidationError> errs = List.of();
+        given(adminQuery.collectValidationErrors(any(), any(), any(), any())).willReturn(errs);
+        assertThat(spec.validate()).isSameAs(errs);
+
+        given(jobTrackingService.persistRegisterInvalid(
+                isNull(), eq(1L), eq(registerRequest), eq(errs))).willReturn(7L);
+        assertThat(spec.persistInvalid(errs)).isEqualTo(7L);
+
+        given(contentTxService.processRegisterAndComplete(
+                isNull(), eq(1L), eq(registerRequest))).willReturn(9L);
+        assertThat(spec.processAndComplete().registerJobId()).isEqualTo(9L);
+
+        RuntimeException ex = new RuntimeException("boom");
+        given(jobTrackingService.persistRegisterFailed(
+                isNull(), eq(1L), eq(registerRequest), eq(ex))).willReturn(8L);
+        assertThat(spec.persistFailed(ex)).isEqualTo(8L);
     }
 
-    @DisplayName("registerBulkContent: 검증 실패 시 Job INVALID + 이벤트 미발행 + BulkValidationException")
+    @DisplayName("updateBulkContent: spec.validate는 contentId 검증 + 일반 검증을 합치고, 협력자로 위임한다")
     @Test
-    void registerBulkContent_validationFailure() {
-        // given
-        JobValidationError error = new JobValidationError(
-                "categories[0].categoryType", "BadType",
-                "CATEGORY_TYPE_BAD_REQUEST", "올바르지 않은 분류 타입입니다.");
-        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
-                .willReturn(List.of(error));
-
-        ArgumentCaptor<AdminContentRegisterJob> jobCaptor =
-                ArgumentCaptor.forClass(AdminContentRegisterJob.class);
-        given(adminContentRegisterJobRepository.save(jobCaptor.capture()))
-                .willAnswer(inv -> {
-                    AdminContentRegisterJob j = inv.getArgument(0);
-                    ReflectionTestUtils.setField(j, "id", 100L);
-                    return j;
-                });
-
-        // when & then
-        assertThatThrownBy(() -> adminService.registerBulkContent(admin, registerRequest))
-                .isInstanceOf(BulkValidationException.class)
-                .extracting("errors")
-                .asList()
-                .hasSize(1);
-
-        AdminContentRegisterJob savedJob = jobCaptor.getValue();
-        assertThat(savedJob.getStatus()).isEqualTo(BatchStatus.INVALID);
-        assertThat(savedJob.getErrorCode()).isEqualTo("VALIDATION_ERROR");
-        assertThat(savedJob.getValidationErrors()).hasSize(1);
-        assertThat(savedJob.getValidationErrors().get(0).field())
-                .isEqualTo("categories[0].categoryType");
-        assertThat(savedJob.getFinishedAt()).isNotNull();
-        verify(eventPublisher, never()).publishEvent(any(ContentStreamingEvent.class));
-    }
-
-    @DisplayName("updateBulkContent: 성공 시 Job이 COMPLETED 상태이며 UPDATE 이벤트를 발행한다")
-    @Test
-    void updateBulkContent_success() {
-        // given
+    @SuppressWarnings("unchecked")
+    void updateBulkContent_delegatesAndWiresSpec() {
         Long contentId = 7L;
-        Content content = mock(Content.class);
-        ContentMetadata metadata = mock(ContentMetadata.class);
+        AdminContentUpdateResponse expected = new AdminContentUpdateResponse(200L);
+        given(streamingJobExecutor.execute(any())).willReturn(expected);
 
-        given(adminQuery.collectContentIdValidationError(contentId))
-                .willReturn(Collections.emptyList());
-        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
-                .willReturn(Collections.emptyList());
-
-        given(adminQuery.findContentByContentId(contentId)).willReturn(content);
-        given(adminQuery.findContentMetadataByContentId(contentId)).willReturn(metadata);
-
-        Category category = mock(Category.class);
-        given(adminQuery.findByCategoryType(any(CategoryType.class))).willReturn(category);
-        given(adminQuery.findByGenreTypeAndCategory(any(GenreType.class), any(Category.class)))
-                .willReturn(mock(Genre.class));
-        given(adminQuery.findCastByCastId(anyLong())).willReturn(mock(Cast.class));
-        given(adminQuery.findDirectorByDirectorId(anyLong())).willReturn(mock(Director.class));
-        given(adminQuery.findOrSaveCountry(anyString())).willReturn(mock(Country.class));
-        given(adminQuery.findByPlatform(any(PlatformType.class))).willReturn(mock(Platform.class));
-
-        ArgumentCaptor<AdminContentUpdateJob> jobCaptor =
-                ArgumentCaptor.forClass(AdminContentUpdateJob.class);
-        given(adminContentUpdateJobRepository.save(jobCaptor.capture()))
-                .willAnswer(inv -> {
-                    AdminContentUpdateJob j = inv.getArgument(0);
-                    ReflectionTestUtils.setField(j, "id", 200L);
-                    return j;
-                });
-
-        ArgumentCaptor<ContentStreamingEvent> eventCaptor =
-                ArgumentCaptor.forClass(ContentStreamingEvent.class);
-
-        // when
-        AdminContentUpdateResponse response =
+        AdminContentUpdateResponse actual =
                 adminService.updateBulkContent(admin, contentId, updateRequest);
 
-        // then
-        verify(adminQuery).collectContentIdValidationError(contentId);
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(actual).isSameAs(expected);
 
-        ContentStreamingEvent event = eventCaptor.getValue();
-        assertThat(event.getType()).isEqualTo(ContentStreamingType.UPDATE);
-        assertThat(event.getContentId()).isEqualTo(contentId);
-        assertThat(event.getMetadata()).isSameAs(metadata);
+        StreamingJobSpec<AdminContentUpdateResponse> spec = captureSpec();
 
-        AdminContentUpdateJob savedJob = jobCaptor.getValue();
-        assertThat(savedJob.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-        assertThat(savedJob.getFinishedAt()).isNotNull();
-        assertThat(response).isNotNull();
+        JobValidationError cidErr = new JobValidationError(
+                "contentId", "7", "CONTENT_NOT_FOUND", "콘텐츠를 찾을 수 없습니다.");
+        given(adminQuery.collectContentIdValidationError(contentId)).willReturn(List.of(cidErr));
+        given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
+                .willReturn(List.of());
+        assertThat(spec.validate()).containsExactly(cidErr);
+
+        given(jobTrackingService.persistUpdateInvalid(
+                isNull(), eq(1L), eq(contentId), eq(updateRequest), any())).willReturn(21L);
+        assertThat(spec.persistInvalid(List.of(cidErr))).isEqualTo(21L);
+
+        given(contentTxService.processUpdateAndComplete(
+                isNull(), eq(1L), eq(contentId), eq(updateRequest))).willReturn(22L);
+        assertThat(spec.processAndComplete().updateJobId()).isEqualTo(22L);
     }
 
-    @DisplayName("deleteBulkContent: 성공 시 Job이 COMPLETED 상태이며 DELETE 이벤트를 발행한다")
+    @DisplayName("deleteBulkContent: spec.validate는 contentId 검증만, 협력자로 위임한다")
     @Test
-    void deleteBulkContent_success() {
-        // given
+    @SuppressWarnings("unchecked")
+    void deleteBulkContent_delegatesAndWiresSpec() {
         Long contentId = 9L;
-        Content content = mock(Content.class);
-        ContentMetadata metadata = mock(ContentMetadata.class);
-        given(adminQuery.collectContentIdValidationError(contentId))
-                .willReturn(Collections.emptyList());
-        given(adminQuery.findAndValidContentByContentId(contentId)).willReturn(content);
-        given(adminQuery.findContentMetadataByContentId(contentId)).willReturn(metadata);
+        AdminContentDeleteResponse expected = new AdminContentDeleteResponse(300L);
+        given(streamingJobExecutor.execute(any())).willReturn(expected);
 
-        ArgumentCaptor<AdminContentDeleteJob> jobCaptor =
-                ArgumentCaptor.forClass(AdminContentDeleteJob.class);
-        given(adminContentDeleteJobRepository.save(jobCaptor.capture()))
-                .willAnswer(inv -> {
-                    AdminContentDeleteJob j = inv.getArgument(0);
-                    ReflectionTestUtils.setField(j, "id", 300L);
-                    return j;
-                });
+        AdminContentDeleteResponse actual = adminService.deleteBulkContent(admin, contentId);
 
-        ArgumentCaptor<ContentStreamingEvent> eventCaptor =
-                ArgumentCaptor.forClass(ContentStreamingEvent.class);
+        assertThat(actual).isSameAs(expected);
 
-        // when
-        AdminContentDeleteResponse response =
-                adminService.deleteBulkContent(admin, contentId);
+        StreamingJobSpec<AdminContentDeleteResponse> spec = captureSpec();
 
-        // then
-        verify(content).delete(eq(true));
-        verify(metadata).delete(eq(true));
-        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        List<JobValidationError> errs = List.of();
+        given(adminQuery.collectContentIdValidationError(contentId)).willReturn(errs);
+        assertThat(spec.validate()).isSameAs(errs);
 
-        ContentStreamingEvent event = eventCaptor.getValue();
-        assertThat(event.getType()).isEqualTo(ContentStreamingType.DELETE);
-        assertThat(event.getContentId()).isEqualTo(contentId);
-        assertThat(event.getMetadata()).isNull();
+        given(jobTrackingService.persistDeleteInvalid(isNull(), eq(1L), eq(contentId), eq(errs)))
+                .willReturn(31L);
+        assertThat(spec.persistInvalid(errs)).isEqualTo(31L);
 
-        AdminContentDeleteJob savedJob = jobCaptor.getValue();
-        assertThat(savedJob.getStatus()).isEqualTo(BatchStatus.COMPLETED);
-        assertThat(savedJob.getFinishedAt()).isNotNull();
-        assertThat(response).isNotNull();
-    }
-
-    @DisplayName("deleteBulkContent: 컨텐츠 미존재 시 Job INVALID + 이벤트 미발행")
-    @Test
-    void deleteBulkContent_contentNotFound() {
-        // given
-        Long contentId = 999L;
-        JobValidationError error = new JobValidationError(
-                "contentId", "999", "CONTENT_NOT_FOUND", "콘텐츠를 찾을 수 없습니다.");
-        given(adminQuery.collectContentIdValidationError(contentId))
-                .willReturn(List.of(error));
-
-        ArgumentCaptor<AdminContentDeleteJob> jobCaptor =
-                ArgumentCaptor.forClass(AdminContentDeleteJob.class);
-        given(adminContentDeleteJobRepository.save(jobCaptor.capture()))
-                .willAnswer(inv -> {
-                    AdminContentDeleteJob j = inv.getArgument(0);
-                    ReflectionTestUtils.setField(j, "id", 300L);
-                    return j;
-                });
-
-        // when & then
-        assertThatThrownBy(() -> adminService.deleteBulkContent(admin, contentId))
-                .isInstanceOf(BulkValidationException.class);
-
-        AdminContentDeleteJob savedJob = jobCaptor.getValue();
-        assertThat(savedJob.getStatus()).isEqualTo(BatchStatus.INVALID);
-        assertThat(savedJob.getErrorCode()).isEqualTo("VALIDATION_ERROR");
-        assertThat(savedJob.getValidationErrors()).hasSize(1);
-        assertThat(savedJob.getValidationErrors().get(0).field()).isEqualTo("contentId");
-        verify(eventPublisher, never()).publishEvent(any(ContentStreamingEvent.class));
+        given(contentTxService.processDeleteAndComplete(isNull(), eq(1L), eq(contentId)))
+                .willReturn(32L);
+        assertThat(spec.processAndComplete().deleteJobId()).isEqualTo(32L);
     }
 }

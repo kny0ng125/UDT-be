@@ -46,18 +46,8 @@ public class LuceneIndexService {
     @EventListener(ApplicationReadyEvent.class)
     public void buildIndexOnStartup() {
         log.info("===== Lucene 인덱스 초기화 시작 =====");
-        long startTime = System.currentTimeMillis();
-
         try {
-            int successCount = rebuildIndex();
-            long endTime = System.currentTimeMillis();
-            long buildTime = endTime - startTime;
-
-            log.info("===== Lucene 인덱스 빌드 완료: {}ms =====", buildTime);
-
-            // 인덱스 리빌드 완료 이벤트 발행
-            eventPublisher.publishEvent(
-                    IndexRebuildCompleteEvent.of(this, successCount, buildTime));
+            rebuildIndex();
         } catch (Exception e) {
             throw new RestApiException(RecommendContentErrorCode.LUCENE_INDEX_NOT_BUILT);
         }
@@ -65,6 +55,7 @@ public class LuceneIndexService {
 
     public int rebuildIndex() throws IOException {
         indexLock.writeLock().lock();
+        long startTime = System.currentTimeMillis();
         try {
             List<ContentMetadata> contentMetadataList = contentMetadataRepository.findByIsDeletedFalse();
             log.info("인덱싱 대상 ContentMetadata: {}개", contentMetadataList.size());
@@ -87,7 +78,14 @@ public class LuceneIndexService {
 
                 indexWriter.commit();
                 indexBuilt = true;
-                log.info("인덱싱 완료: {}/{}개 성공", successCount, contentMetadataList.size());
+
+                long buildTime = System.currentTimeMillis() - startTime;
+                log.info("인덱싱 완료: {}/{}개 성공 ({}ms)",
+                        successCount, contentMetadataList.size(), buildTime);
+
+                // 전체 리빌드 완료 → 추천 캐시 무효화 (기동/무결성 공통 경로)
+                eventPublisher.publishEvent(
+                        IndexRebuildCompleteEvent.of(this, successCount, buildTime));
 
                 return successCount;
             }

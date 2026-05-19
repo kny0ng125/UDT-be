@@ -7,7 +7,14 @@
       "Bash(./gradlew compileTestJava)",
       "Bash(openssl version *)",
       "Bash(./gradlew compileJava --no-daemon)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "PowerShell(.\\\\gradlew.bat compileJava --console=plain -q)",
+      "PowerShell(.\\\\gradlew.bat compileTestJava --console=plain -q)",
+      "PowerShell(.\\\\gradlew.bat test --console=plain -q --tests \"com.example.udtbe.admin.service.AdminServiceStreamingTest\" --tests \"com.example.udtbe.admin.service.AdminServiceResubmitTest\" --tests \"com.example.udtbe.admin.service.StreamingJobExecutorTest\" --tests \"com.example.udtbe.admin.service.AdminTriggerServiceTest\" --tests \"com.example.udtbe.admin.service.AdminServiceTest\")",
+      "PowerShell(.\\\\gradlew.bat test --console=plain -q)",
+      "PowerShell(.\\\\gradlew.bat test --console=plain -q --tests \"com.example.udtbe.content.service.ContentRecommendationServiceTest\" --tests \"com.example.udtbe.content.service.RecommendationResponseBuilderTest\" --tests \"com.example.udtbe.content.service.RecommendationScoreCalculatorTest\" --tests \"com.example.udtbe.content.service.RecommendationQueryBuilderTest\" --tests \"com.example.udtbe.content.service.GenreAnalyzerTest\" --tests \"com.example.udtbe.admin.service.AdminServiceStreamingTest\" --tests \"com.example.udtbe.admin.service.AdminServiceResubmitTest\" --tests \"com.example.udtbe.admin.service.StreamingJobExecutorTest\")",
+      "Bash(git -C \"C:/Users/SSAFY/IdeaProjects/UDT-be\" status --short)",
+      "Bash(git -C \"C:/Users/SSAFY/IdeaProjects/UDT-be\" branch --show-current)"
     ]
   }
 }
