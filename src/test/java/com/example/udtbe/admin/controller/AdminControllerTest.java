@@ -4,10 +4,8 @@ import static com.example.udtbe.domain.content.entity.enums.CategoryType.ANIMATI
 import static com.example.udtbe.domain.content.entity.enums.CategoryType.DRAMA;
 import static com.example.udtbe.domain.content.entity.enums.CategoryType.MOVIE;
 import static com.example.udtbe.domain.content.entity.enums.CategoryType.VARIETY;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -161,7 +159,7 @@ public class AdminControllerTest extends ApiSupport {
                         new AdminPlatformDTO("디즈니+", "w2")
                 )
         );
-        mockMvc.perform(put("/api/admin/contents/{contentId}", content.getId())
+        mockMvc.perform(post("/api/admin/contents/{contentId}/update", content.getId())
                         .content(objectMapper.writeValueAsString(adminContentUpdateRequest))
                         .contentType(MediaType.APPLICATION_JSON)
                         .cookie(accessTokenOfAdmin)
@@ -180,7 +178,7 @@ public class AdminControllerTest extends ApiSupport {
         contentRepository.save(content);
 
         // when
-        mockMvc.perform(delete("/api/admin/contents/{contentId}", content.getId())
+        mockMvc.perform(post("/api/admin/contents/{contentId}/delete", content.getId())
                         .cookie(accessTokenOfAdmin)
                 )
                 .andExpect(status().isCreated())

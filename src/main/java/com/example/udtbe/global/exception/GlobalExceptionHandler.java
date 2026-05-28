@@ -49,6 +49,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(StreamingFailureException.class)
+    public ResponseEntity<Object> handleStreamingFailure(StreamingFailureException e) {
+        MDC.put("status", "500");
+        MDC.put("errorCode", "STREAMING_FAILURE");
+        log.error("[스트리밍 처리 실패] jobId={}: {}", e.getJobId(), e.getMessage(), e);
+        return ResponseEntity.internalServerError()
+                .body(new StreamingFailureErrorResponse(
+                        "STREAMING_FAILURE",
+                        "콘텐츠 작업 처리에 실패했습니다.",
+                        e.getJobId(),
+                        e.getMessage()
+                ));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Object> handleIllegalArgument(IllegalArgumentException e) {
         ErrorCode errorCode = INVALID_PARAMETER;

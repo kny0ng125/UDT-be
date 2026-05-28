@@ -49,7 +49,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "관리자 API", description = "관리자 관련 API")
@@ -72,7 +71,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "404", description = "존재하지 않는 콘텐츠"),
             @ApiResponse(responseCode = "400", description = "올바르지 않은 분류/플렛폼/장르 타입")
     })
-    @PutMapping("/api/admin/contents/{contentId}")
+    @PostMapping("/api/admin/contents/{contentId}/update")
     ResponseEntity<AdminContentUpdateResponse> updateContent(
             @AuthenticationPrincipal Admin admin,
             @PathVariable(name = "contentId") Long contentId,
@@ -84,7 +83,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "201", description = "삭제 예정 콘텐츠 deleteJobId 반환"),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 콘텐츠")
     })
-    @DeleteMapping("/api/admin/contents/{contentId}")
+    @PostMapping("/api/admin/contents/{contentId}/delete")
     ResponseEntity<AdminContentDeleteResponse> deleteContent(
             @AuthenticationPrincipal Admin admin,
             @PathVariable(name = "contentId") Long contentId
@@ -203,7 +202,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "404", description = "출연진을 찾을 수 없음"),
             @ApiResponse(responseCode = "409", description = "이미 삭제된 출연진"),
     })
-    @PutMapping("/api/admin/casts/{castId}")
+    @PostMapping("/api/admin/casts/{castId}/update")
     ResponseEntity<Void> updateCast(
             @PathVariable(name = "castId") Long castId,
             @Valid @RequestBody AdminCastUpdateRequest request
@@ -215,7 +214,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "404", description = "출연진을 찾을 수 없음"),
             @ApiResponse(responseCode = "409", description = "이미 삭제됐거나 콘텐츠에 연결되어 있음"),
     })
-    @DeleteMapping("/api/admin/casts/{castId}")
+    @PostMapping("/api/admin/casts/{castId}/delete")
     ResponseEntity<Void> deleteCast(
             @PathVariable(name = "castId") Long castId
     );
@@ -237,7 +236,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "404", description = "감독을 찾을 수 없음"),
             @ApiResponse(responseCode = "409", description = "이미 삭제된 감독"),
     })
-    @PutMapping("/api/admin/directors/{directorId}")
+    @PostMapping("/api/admin/directors/{directorId}/update")
     ResponseEntity<Void> updateDirector(
             @PathVariable(name = "directorId") Long directorId,
             @Valid @RequestBody AdminDirectorUpdateRequest request
@@ -249,7 +248,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "404", description = "감독을 찾을 수 없음"),
             @ApiResponse(responseCode = "409", description = "이미 삭제됐거나 콘텐츠에 연결되어 있음"),
     })
-    @DeleteMapping("/api/admin/directors/{directorId}")
+    @PostMapping("/api/admin/directors/{directorId}/delete")
     ResponseEntity<Void> deleteDirector(
             @PathVariable(name = "directorId") Long directorId
     );
