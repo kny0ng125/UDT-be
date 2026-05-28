@@ -1,9 +1,11 @@
 package com.example.udtbe.domain.content.repository;
 
 import com.example.udtbe.domain.content.entity.ContentMetadata;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface ContentMetadataRepository extends JpaRepository<ContentMetadata, Long> {
@@ -14,4 +16,8 @@ public interface ContentMetadataRepository extends JpaRepository<ContentMetadata
 
     @Query("select cm.id from ContentMetadata cm where cm.content.id = :contentId")
     Optional<Long> findIdByContent_Id(Long contentId);
+
+    @Modifying
+    @Query("delete from ContentMetadata cm where cm.isDeleted = true and cm.updatedAt < :threshold")
+    int hardDeleteSoftDeletedBefore(LocalDateTime threshold);
 }

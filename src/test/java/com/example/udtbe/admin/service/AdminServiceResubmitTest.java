@@ -22,11 +22,11 @@ import com.example.udtbe.domain.admin.service.ContentTxService;
 import com.example.udtbe.domain.admin.service.JobTrackingService;
 import com.example.udtbe.domain.admin.service.StreamingJobExecutor;
 import com.example.udtbe.domain.admin.service.StreamingJobSpec;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
 import com.example.udtbe.global.exception.RestApiException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -96,7 +96,7 @@ class AdminServiceResubmitTest {
     @Test
     void resubmitRegisterJob_notInvalidStatus() {
         AdminContentRegisterJob job = mock(AdminContentRegisterJob.class);
-        given(job.getStatus()).willReturn(BatchStatus.COMPLETED);
+        given(job.getStatus()).willReturn(StreamingStatus.COMPLETED);
         given(adminQuery.findAdminContentRegisterJobById(100L)).willReturn(job);
 
         assertThatThrownBy(() -> adminService.resubmitRegisterJob(100L, registerRequest()))
@@ -110,7 +110,7 @@ class AdminServiceResubmitTest {
     @SuppressWarnings("unchecked")
     void resubmitRegisterJob_delegatesWithJobId() {
         AdminContentRegisterJob job = mock(AdminContentRegisterJob.class);
-        given(job.getStatus()).willReturn(BatchStatus.INVALID);
+        given(job.getStatus()).willReturn(StreamingStatus.INVALID);
         given(job.getAdminId()).willReturn(1L);
         given(adminQuery.findAdminContentRegisterJobById(100L)).willReturn(job);
 
@@ -141,7 +141,7 @@ class AdminServiceResubmitTest {
     @SuppressWarnings("unchecked")
     void resubmitUpdateJob_delegatesWithJobId() {
         AdminContentUpdateJob job = mock(AdminContentUpdateJob.class);
-        given(job.getStatus()).willReturn(BatchStatus.INVALID);
+        given(job.getStatus()).willReturn(StreamingStatus.INVALID);
         given(job.getAdminId()).willReturn(1L);
         given(job.getContentId()).willReturn(5L);
         given(adminQuery.findAdminContentUpdateJobById(200L)).willReturn(job);
@@ -170,7 +170,7 @@ class AdminServiceResubmitTest {
     @SuppressWarnings("unchecked")
     void resubmitDeleteJob_delegatesWithJobId() {
         AdminContentDeleteJob job = mock(AdminContentDeleteJob.class);
-        given(job.getStatus()).willReturn(BatchStatus.INVALID);
+        given(job.getStatus()).willReturn(StreamingStatus.INVALID);
         given(job.getAdminId()).willReturn(1L);
         given(adminQuery.findAdminContentDelJobById(300L)).willReturn(job);
 

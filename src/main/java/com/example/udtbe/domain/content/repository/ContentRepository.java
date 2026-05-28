@@ -2,8 +2,10 @@ package com.example.udtbe.domain.content.repository;
 
 import com.example.udtbe.domain.content.entity.Content;
 import com.example.udtbe.domain.content.entity.enums.GenreType;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface ContentRepository extends JpaRepository<Content, Long>, ContentRepositoryCustom {
@@ -18,4 +20,8 @@ public interface ContentRepository extends JpaRepository<Content, Long>, Content
             where c.id = :contentId
             """)
     List<GenreType> findGenreTypesByContentId(Long contentId);
+
+    @Modifying
+    @Query("delete from Content c where c.isDeleted = true and c.updatedAt < :threshold")
+    int hardDeleteSoftDeletedBefore(LocalDateTime threshold);
 }

@@ -48,4 +48,21 @@ public class Cast extends TimeBaseEntity {
                 .isDeleted(false)
                 .build();
     }
+
+    public void update(String castName, String castImageUrl) {
+        if (castName != null) {
+            this.castName = castName;
+        }
+        if (castImageUrl != null) {
+            this.castImageUrl = castImageUrl;
+        }
+    }
+
+    public void softDelete() {
+        this.isDeleted = true;
+    }
+
+    public void restore() {
+        this.isDeleted = false;
+    }
 }

@@ -2,16 +2,16 @@ package com.example.udtbe.domain.admin.dto.response;
 
 import com.example.udtbe.domain.admin.dto.common.AdminCategoryDTO;
 import com.example.udtbe.domain.admin.dto.common.AdminPlatformDTO;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 
 public record AdminContentUpJobGetDetailResponse(
 
-        Long batchJobMetricId,
+        Long streamingJobMetricId,
 
-        BatchStatus status,
+        StreamingStatus status,
 
         Long contentId,
 
@@ -42,8 +42,6 @@ public record AdminContentUpJobGetDetailResponse(
         List<Long> casts,
 
         List<AdminPlatformDTO> platforms,
-
-        String errorCode,
 
         String errorMessage,
 

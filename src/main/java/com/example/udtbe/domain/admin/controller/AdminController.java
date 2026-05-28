@@ -1,11 +1,13 @@
 package com.example.udtbe.domain.admin.controller;
 
+import com.example.udtbe.domain.admin.dto.request.AdminCastUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentDeleteResubmitRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentGetsRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
+import com.example.udtbe.domain.admin.dto.request.AdminDirectorUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminMemberListGetRequest;
@@ -35,8 +37,8 @@ import com.example.udtbe.domain.admin.entity.Admin;
 import com.example.udtbe.domain.admin.service.AdminAuthService;
 import com.example.udtbe.domain.admin.service.AdminService;
 import com.example.udtbe.domain.admin.service.AdminTriggerService;
-import com.example.udtbe.domain.batch.scheduler.AdminScheduler;
-import com.example.udtbe.domain.batch.scheduler.FeedbackFullScanScheduler;
+import com.example.udtbe.domain.scheduling.scheduler.AdminScheduler;
+import com.example.udtbe.domain.scheduling.scheduler.FeedbackFullScanScheduler;
 import com.example.udtbe.global.dto.CursorPageResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -172,6 +174,42 @@ public class AdminController implements AdminControllerApiSpec {
     }
 
     @Override
+    public ResponseEntity<Void> updateCast(Long castId, AdminCastUpdateRequest request) {
+        adminService.updateCast(castId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteCast(Long castId) {
+        adminService.deleteCast(castId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> restoreCast(Long castId) {
+        adminService.restoreCast(castId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> updateDirector(Long directorId, AdminDirectorUpdateRequest request) {
+        adminService.updateDirector(directorId, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteDirector(Long directorId) {
+        adminService.deleteDirector(directorId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> restoreDirector(Long directorId) {
+        adminService.restoreDirector(directorId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
     public ResponseEntity<CursorPageResponse<AdminScheduledContentResponse>> getBatches(
             AdminScheduledContentsRequest adminContentJobGetsRequest) {
         CursorPageResponse<AdminScheduledContentResponse> adminContentJobGetResponseCursorPageResponse = adminService.getBatchJobs(
@@ -245,6 +283,24 @@ public class AdminController implements AdminControllerApiSpec {
         adminTriggerService.retryFailedBatch();
         adminService.allUpdateMetric();
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @Override
+    public ResponseEntity<Void> retryRegisterJob(Long jobId) {
+        adminTriggerService.retryRegisterJobById(jobId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> retryUpdateJob(Long jobId) {
+        adminTriggerService.retryUpdateJobById(jobId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<Void> retryDeleteJob(Long jobId) {
+        adminTriggerService.retryDeleteJobById(jobId);
+        return ResponseEntity.noContent().build();
     }
 
     @Override

@@ -15,13 +15,13 @@ import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.service.AdminQuery;
 import com.example.udtbe.domain.admin.service.AdminService;
 import com.example.udtbe.domain.admin.service.AdminTriggerService;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.repository.AdminContentDeleteJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentRegisterJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentUpdateJobRepository;
 import com.example.udtbe.domain.content.entity.Content;
 import com.example.udtbe.domain.content.entity.ContentMetadata;
 import com.example.udtbe.domain.content.event.ContentStreamingEvent;
@@ -62,18 +62,18 @@ class AdminTriggerServiceTest {
         // given
         AdminContentRegisterJob job = AdminContentRegisterJobFixture
                 .createPendingJob(1L, "재시도제목", "재시도설명");
-        job.changeStatus(BatchStatus.FAILED);
+        job.changeStatus(StreamingStatus.FAILED);
 
         Content content = mock(Content.class);
         given(content.getId()).willReturn(42L);
         ContentMetadata metadata = mock(ContentMetadata.class);
 
         given(registerJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
         given(updateJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(deleteJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
                 .willReturn(Collections.emptyList());
         given(adminService.registerContent(any(AdminContentRegisterRequest.class)))
@@ -91,7 +91,7 @@ class AdminTriggerServiceTest {
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue().getType()).isEqualTo(ContentStreamingType.REGISTER);
         assertThat(eventCaptor.getValue().getContentId()).isEqualTo(42L);
-        assertThat(job.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(job.getStatus()).isEqualTo(StreamingStatus.COMPLETED);
         assertThat(job.getRetryCount()).isEqualTo(1);
         assertThat(job.getFinishedAt()).isNotNull();
     }
@@ -102,14 +102,14 @@ class AdminTriggerServiceTest {
         // given
         AdminContentRegisterJob job = AdminContentRegisterJobFixture
                 .createPendingJob(1L, "제목", "설명");
-        job.changeStatus(BatchStatus.FAILED);
+        job.changeStatus(StreamingStatus.FAILED);
 
         given(registerJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
         given(updateJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(deleteJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
 
         JobValidationError error = new JobValidationError(
                 "casts[0]", "1", "CAST_NOT_FOUND", "출연진을 찾을 수 없습니다.");
@@ -120,7 +120,7 @@ class AdminTriggerServiceTest {
         adminTriggerService.retryFailedBatch();
 
         // then
-        assertThat(job.getStatus()).isEqualTo(BatchStatus.INVALID);
+        assertThat(job.getStatus()).isEqualTo(StreamingStatus.INVALID);
         assertThat(job.getErrorCode()).isEqualTo("VALIDATION_ERROR");
         assertThat(job.getValidationErrors()).hasSize(1);
         assertThat(job.getRetryCount()).isEqualTo(1);
@@ -134,14 +134,14 @@ class AdminTriggerServiceTest {
         // given
         AdminContentRegisterJob job = AdminContentRegisterJobFixture
                 .createPendingJob(1L, "제목", "설명");
-        job.changeStatus(BatchStatus.FAILED);
+        job.changeStatus(StreamingStatus.FAILED);
 
         given(registerJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
         given(updateJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(deleteJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(adminQuery.collectValidationErrors(any(), any(), any(), any()))
                 .willReturn(Collections.emptyList());
         given(adminService.registerContent(any(AdminContentRegisterRequest.class)))
@@ -151,7 +151,7 @@ class AdminTriggerServiceTest {
         adminTriggerService.retryFailedBatch();
 
         // then
-        assertThat(job.getStatus()).isEqualTo(BatchStatus.FAILED);
+        assertThat(job.getStatus()).isEqualTo(StreamingStatus.FAILED);
         assertThat(job.getErrorCode()).isEqualTo("RETRY_FAILED");
         assertThat(job.getRetryCount()).isEqualTo(1);
         verify(eventPublisher, never()).publishEvent(any(ContentStreamingEvent.class));
@@ -162,14 +162,14 @@ class AdminTriggerServiceTest {
     void retry_delete_success() {
         // given
         AdminContentDeleteJob job = AdminContentDeleteJobFixture.createPendingJob(1L, 7L);
-        job.changeStatus(BatchStatus.FAILED);
+        job.changeStatus(StreamingStatus.FAILED);
 
         given(registerJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(updateJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(deleteJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of(job));
         given(adminQuery.collectContentIdValidationError(7L))
                 .willReturn(Collections.emptyList());
 
@@ -185,7 +185,7 @@ class AdminTriggerServiceTest {
         assertThat(eventCaptor.getValue().getType()).isEqualTo(ContentStreamingType.DELETE);
         assertThat(eventCaptor.getValue().getContentId()).isEqualTo(7L);
         assertThat(eventCaptor.getValue().getMetadata()).isNull();
-        assertThat(job.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(job.getStatus()).isEqualTo(StreamingStatus.COMPLETED);
         assertThat(job.getRetryCount()).isEqualTo(1);
     }
 
@@ -194,11 +194,11 @@ class AdminTriggerServiceTest {
     void retry_emptyFailedLists() {
         // given
         given(registerJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(updateJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(deleteJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
 
         // when
         adminTriggerService.retryFailedBatch();
@@ -216,21 +216,21 @@ class AdminTriggerServiceTest {
         // given - findByStatusAndRetryCountLessThan(FAILED, 3)이 빈 리스트를 반환
         // (실제 DB에서는 retryCount=3인 Job이 있어도 제외됨)
         given(registerJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(updateJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
         given(deleteJobRepository.findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
+                StreamingStatus.FAILED, MAX_RETRY_COUNT)).willReturn(List.of());
 
         // when
         adminTriggerService.retryFailedBatch();
 
         // then
         verify(registerJobRepository).findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT);
+                StreamingStatus.FAILED, MAX_RETRY_COUNT);
         verify(updateJobRepository).findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT);
+                StreamingStatus.FAILED, MAX_RETRY_COUNT);
         verify(deleteJobRepository).findByStatusAndRetryCountLessThan(
-                BatchStatus.FAILED, MAX_RETRY_COUNT);
+                StreamingStatus.FAILED, MAX_RETRY_COUNT);
     }
 }

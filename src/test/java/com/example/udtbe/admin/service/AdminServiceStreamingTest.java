@@ -22,7 +22,7 @@ import com.example.udtbe.domain.admin.service.ContentTxService;
 import com.example.udtbe.domain.admin.service.JobTrackingService;
 import com.example.udtbe.domain.admin.service.StreamingJobExecutor;
 import com.example.udtbe.domain.admin.service.StreamingJobSpec;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;

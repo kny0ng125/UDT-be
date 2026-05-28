@@ -3,8 +3,8 @@ package com.example.udtbe.common.fixture;
 
 import com.example.udtbe.domain.admin.dto.common.AdminCategoryDTO;
 import com.example.udtbe.domain.admin.dto.common.AdminPlatformDTO;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,7 +32,7 @@ public class AdminContentRegisterJobFixture {
         adminPlatformDTOs.put("넷플릭스", new AdminPlatformDTO("넷플릭스", "netflix.url"));
 
         return AdminContentRegisterJob.of(
-                BatchStatus.PENDING,
+                StreamingStatus.PENDING,
                 memberId,
                 title,
                 description,

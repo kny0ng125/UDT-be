@@ -3,13 +3,13 @@ package com.example.udtbe.domain.admin.service;
 import com.example.udtbe.domain.admin.dto.AdminContentMapper;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.repository.AdminContentDeleteJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentRegisterJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentUpdateJobRepository;
 import com.example.udtbe.domain.content.entity.Content;
 import com.example.udtbe.domain.content.entity.ContentMetadata;
 import com.example.udtbe.domain.content.event.ContentStreamingEvent;
@@ -27,8 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 콘텐츠 커밋을 기준으로 동작한다.</p>
  *
  * <p>{@link AdminService}의 콘텐츠 도메인 로직(registerContent/updateContent/deleteContent)을
- * 레거시 배치(BatchConfig)와의 호환을 위해 옮기지 않고 재사용한다. 이로 인한
- * {@code AdminService ↔ ContentTxService} 생성자 순환은 {@code @Lazy}로 차단한다.</p>
+ * 재사용한다. 이로 인한 {@code AdminService ↔ ContentTxService} 생성자 순환은
+ * {@code @Lazy}로 차단한다.</p>
  */
 @Service
 public class ContentTxService {
@@ -78,7 +78,7 @@ public class ContentTxService {
             job.clearErrors();
             job.resetRetryCount();
         }
-        job.changeStatus(BatchStatus.COMPLETED);
+        job.changeStatus(StreamingStatus.COMPLETED);
         job.finish();
         registerJobRepository.save(job);
         return job.getId();
@@ -107,7 +107,7 @@ public class ContentTxService {
             job.clearErrors();
             job.resetRetryCount();
         }
-        job.changeStatus(BatchStatus.COMPLETED);
+        job.changeStatus(StreamingStatus.COMPLETED);
         job.finish();
         updateJobRepository.save(job);
         return job.getId();
@@ -129,7 +129,7 @@ public class ContentTxService {
             job.clearErrors();
             job.resetRetryCount();
         }
-        job.changeStatus(BatchStatus.COMPLETED);
+        job.changeStatus(StreamingStatus.COMPLETED);
         job.finish();
         deleteJobRepository.save(job);
         return job.getId();

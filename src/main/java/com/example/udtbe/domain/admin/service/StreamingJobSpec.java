@@ -1,6 +1,6 @@
 package com.example.udtbe.domain.admin.service;
 
-import com.example.udtbe.domain.batch.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
 import java.util.List;
 
 /**

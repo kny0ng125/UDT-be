@@ -38,15 +38,15 @@ import com.example.udtbe.domain.admin.dto.response.AdminMembersGetResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminScheduledContentResponse;
 import com.example.udtbe.domain.admin.service.AdminQuery;
 import com.example.udtbe.domain.admin.service.AdminService;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchFilterType;
-import com.example.udtbe.domain.batch.entity.enums.BatchJobType;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.exception.BatchErrorCode;
-import com.example.udtbe.domain.batch.repository.AdminContentJobRepositoryImpl;
-import com.example.udtbe.domain.batch.repository.BatchJobMetricRepository;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingFilterType;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingJobType;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.exception.StreamingErrorCode;
+import com.example.udtbe.domain.streaming.repository.AdminContentJobRepositoryImpl;
+import com.example.udtbe.domain.streaming.repository.StreamingJobMetricRepository;
 import com.example.udtbe.domain.content.entity.Cast;
 import com.example.udtbe.domain.content.entity.Category;
 import com.example.udtbe.domain.content.entity.Content;
@@ -116,7 +116,7 @@ public class AdminServiceTest {
     @Mock
     private FeedbackStatisticsRepositoryImpl feedbackStatisticsRepositoryImpl;
     @Mock
-    private BatchJobMetricRepository batchJobMetricRepository;
+    private StreamingJobMetricRepository streamingJobMetricRepository;
     @InjectMocks
     private AdminService adminService;
 
@@ -678,15 +678,15 @@ public class AdminServiceTest {
         // given
         AdminScheduledContentsRequest request = new AdminScheduledContentsRequest("5", 10,
                 "FAILED");
-        BatchFilterType type = BatchFilterType.from(request.type());
+        StreamingFilterType type = StreamingFilterType.from(request.type());
 
         List<AdminScheduledContentResponse> jobs = List.of(
-                new AdminScheduledContentResponse(5L, BatchStatus.PENDING, 1L,
+                new AdminScheduledContentResponse(5L, StreamingStatus.PENDING, 1L,
                         LocalDateTime.now(),
-                        LocalDateTime.now(), LocalDateTime.now(), BatchJobType.DELETE),
-                new AdminScheduledContentResponse(4L, BatchStatus.FAILED, 1L,
+                        LocalDateTime.now(), LocalDateTime.now(), StreamingJobType.DELETE),
+                new AdminScheduledContentResponse(4L, StreamingStatus.FAILED, 1L,
                         LocalDateTime.now(),
-                        LocalDateTime.now(), LocalDateTime.now(), BatchJobType.DELETE)
+                        LocalDateTime.now(), LocalDateTime.now(), StreamingJobType.DELETE)
         );
         CursorPageResponse<AdminScheduledContentResponse> expectedResponse = new CursorPageResponse<>(
                 jobs, "4", true);
@@ -766,15 +766,15 @@ public class AdminServiceTest {
     void deleteInvalidBatchJobs_Failure_ThrowsException() {
         // given
         RestApiException expectedException = new RestApiException(
-                BatchErrorCode.BATCH_DELETE_FAILED);
+                StreamingErrorCode.BATCH_DELETE_FAILED);
         doThrow(expectedException).when(adminQuery).deleteInvalidBatchJobs();
 
         // when & then
         assertThatThrownBy(() -> adminService.deleteInvalidBatchJobs())
                 .isInstanceOf(RestApiException.class)
-                .hasMessage(BatchErrorCode.BATCH_DELETE_FAILED.getMessage())
+                .hasMessage(StreamingErrorCode.BATCH_DELETE_FAILED.getMessage())
                 .extracting(e -> ((RestApiException) e).getErrorCode())
-                .isEqualTo(BatchErrorCode.BATCH_DELETE_FAILED);
+                .isEqualTo(StreamingErrorCode.BATCH_DELETE_FAILED);
 
         then(adminQuery).should(times(1)).deleteInvalidBatchJobs();
     }

@@ -12,17 +12,17 @@ import com.example.udtbe.domain.admin.dto.response.AdminDirectorsGetResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminScheduledResContentMetricResponse;
 import com.example.udtbe.domain.admin.entity.Admin;
 import com.example.udtbe.domain.admin.repository.AdminRepository;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.BatchJobMetric;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.exception.BatchErrorCode;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
-import com.example.udtbe.domain.batch.repository.BatchJobMetricRepository;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.StreamingJobMetric;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.exception.StreamingErrorCode;
+import com.example.udtbe.domain.streaming.repository.AdminContentDeleteJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentRegisterJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentUpdateJobRepository;
+import com.example.udtbe.domain.streaming.repository.StreamingJobMetricRepository;
 import com.example.udtbe.domain.content.entity.Cast;
 import com.example.udtbe.domain.content.entity.Category;
 import com.example.udtbe.domain.content.entity.Content;
@@ -62,7 +62,7 @@ public class AdminQuery {
     private final CastRepository castRepository;
     private final DirectorRepository directorRepository;
     private final CountryRepository countryRepository;
-    private final BatchJobMetricRepository batchJobMetricRepository;
+    private final StreamingJobMetricRepository streamingJobMetricRepository;
     private final AdminContentRegisterJobRepository adminContentRegisterJobRepository;
     private final AdminContentUpdateJobRepository adminContentUpdateJobRepository;
     private final AdminContentDeleteJobRepository adminContentDeleteJobRepository;
@@ -329,10 +329,10 @@ public class AdminQuery {
         return directorRepository.getDirectors(adminDirectorsGetRequest);
     }
 
-    public BatchJobMetric findAdminContentJobMetric(Long contentJobMetricId) {
-        return batchJobMetricRepository.findById(contentJobMetricId)
+    public StreamingJobMetric findAdminContentJobMetric(Long contentJobMetricId) {
+        return streamingJobMetricRepository.findById(contentJobMetricId)
                 .orElseThrow(()
-                        -> new RestApiException(BatchErrorCode.ADMIN_CONTENT_JOB_METRIC)
+                        -> new RestApiException(StreamingErrorCode.ADMIN_CONTENT_JOB_METRIC)
                 );
     }
 
@@ -342,19 +342,19 @@ public class AdminQuery {
 
     public AdminContentRegisterJob findAdminContentRegisterJobById(Long jobId) {
         return adminContentRegisterJobRepository.findById(jobId).orElseThrow(() ->
-                new RestApiException(BatchErrorCode.ADMIN_CONTENT_REGISTER_JOB_NOT_FOUND)
+                new RestApiException(StreamingErrorCode.ADMIN_CONTENT_REGISTER_JOB_NOT_FOUND)
         );
     }
 
     public AdminContentUpdateJob findAdminContentUpdateJobById(Long jobId) {
         return adminContentUpdateJobRepository.findById(jobId).orElseThrow(() ->
-                new RestApiException(BatchErrorCode.ADMIN_CONTENT_UPDATE_JOB_NOT_FOUND)
+                new RestApiException(StreamingErrorCode.ADMIN_CONTENT_UPDATE_JOB_NOT_FOUND)
         );
     }
 
     public AdminContentDeleteJob findAdminContentDelJobById(Long jobId) {
         return adminContentDeleteJobRepository.findById(jobId).orElseThrow(() ->
-                new RestApiException(BatchErrorCode.ADMIN_CONTENT_DELETE_JOB_NOT_FOUND)
+                new RestApiException(StreamingErrorCode.ADMIN_CONTENT_DELETE_JOB_NOT_FOUND)
         );
     }
 
@@ -365,18 +365,18 @@ public class AdminQuery {
 
     public void deleteInvalidBatchJobs() {
         try {
-            adminContentRegisterJobRepository.deleteByStatus(BatchStatus.INVALID);
-            adminContentUpdateJobRepository.deleteByStatus(BatchStatus.INVALID);
-            adminContentDeleteJobRepository.deleteByStatus(BatchStatus.INVALID);
+            adminContentRegisterJobRepository.deleteByStatus(StreamingStatus.INVALID);
+            adminContentUpdateJobRepository.deleteByStatus(StreamingStatus.INVALID);
+            adminContentDeleteJobRepository.deleteByStatus(StreamingStatus.INVALID);
         } catch (Exception e) {
-            throw new RestApiException(BatchErrorCode.BATCH_DELETE_FAILED);
+            throw new RestApiException(StreamingErrorCode.BATCH_DELETE_FAILED);
         }
     }
 
     public AdminScheduledResContentMetricResponse getCountAdminContentResJob() {
-        long totalRegister = adminContentRegisterJobRepository.countByStatus(BatchStatus.PENDING);
-        long totalUpdate = adminContentUpdateJobRepository.countByStatus(BatchStatus.PENDING);
-        long totalDelete = adminContentDeleteJobRepository.countByStatus(BatchStatus.PENDING);
+        long totalRegister = adminContentRegisterJobRepository.countByStatus(StreamingStatus.PENDING);
+        long totalUpdate = adminContentUpdateJobRepository.countByStatus(StreamingStatus.PENDING);
+        long totalDelete = adminContentDeleteJobRepository.countByStatus(StreamingStatus.PENDING);
 
         long total = totalRegister + totalUpdate + totalDelete;
         return new AdminScheduledResContentMetricResponse(total, totalRegister, totalUpdate,

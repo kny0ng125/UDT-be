@@ -12,13 +12,13 @@ import com.example.udtbe.domain.admin.dto.response.AdminContentRegisterResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminContentUpJobGetDetailResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminContentUpdateResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminScheduledContentResultGetResponse;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.BatchJobMetric;
-import com.example.udtbe.domain.batch.entity.enums.BatchJobStatus;
-import com.example.udtbe.domain.batch.entity.enums.BatchJobType;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.StreamingJobMetric;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingJobStatus;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingJobType;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
 import com.example.udtbe.domain.content.entity.Content;
 import com.example.udtbe.domain.content.entity.FeedbackStatistics;
 import java.time.LocalDateTime;
@@ -41,7 +41,7 @@ public class AdminContentMapper {
         request.platforms().forEach(dto -> platformDTOs.put(dto.platformType(), dto));
 
         return AdminContentRegisterJob.of(
-                BatchStatus.PENDING,
+                StreamingStatus.PENDING,
                 memberId,
                 request.title(),
                 request.description(),
@@ -70,7 +70,7 @@ public class AdminContentMapper {
         request.platforms().forEach(dto -> platformDTOs.put(dto.platformType(), dto));
 
         return AdminContentUpdateJob.of(
-                BatchStatus.PENDING,
+                StreamingStatus.PENDING,
                 memberId,
                 contentId,
                 request.title(),
@@ -92,7 +92,7 @@ public class AdminContentMapper {
 
     public static AdminContentDeleteJob toContentDeleteJob(Long contentId, Long memberId) {
         return AdminContentDeleteJob.of(
-                BatchStatus.PENDING,
+                StreamingStatus.PENDING,
                 memberId,
                 contentId
         );
@@ -173,7 +173,7 @@ public class AdminContentMapper {
         List<AdminPlatformDTO> platformDTOs = new ArrayList<>(job.getPlatforms().values());
 
         return new AdminContentRegJobGetDetailResponse(
-                job.getBatchJobMetricId(),
+                job.getStreamingJobMetricId(),
                 job.getStatus(),
                 job.getTitle(),
                 job.getDescription(),
@@ -189,7 +189,6 @@ public class AdminContentMapper {
                 job.getCasts(),
                 job.getDirectors(),
                 platformDTOs,
-                job.getErrorCode(),
                 job.getErrorMessage(),
                 job.getValidationErrors(),
                 job.getRetryCount(),
@@ -203,7 +202,7 @@ public class AdminContentMapper {
         List<AdminPlatformDTO> platformDTOs = new ArrayList<>(job.getPlatforms().values());
 
         return new AdminContentUpJobGetDetailResponse(
-                job.getBatchJobMetricId(),
+                job.getStreamingJobMetricId(),
                 job.getStatus(),
                 job.getContentId(),
                 job.getTitle(),
@@ -220,7 +219,6 @@ public class AdminContentMapper {
                 job.getCasts(),
                 job.getDirectors(),
                 platformDTOs,
-                job.getErrorCode(),
                 job.getErrorMessage(),
                 job.getValidationErrors(),
                 job.getRetryCount(),
@@ -232,10 +230,9 @@ public class AdminContentMapper {
             AdminContentDeleteJob job) {
 
         return new AdminContentDelJobGetDetailResponse(
-                job.getBatchJobMetricId(),
+                job.getStreamingJobMetricId(),
                 job.getStatus(),
                 job.getContentId(),
-                job.getErrorCode(),
                 job.getErrorMessage(),
                 job.getValidationErrors(),
                 job.getRetryCount(),
@@ -243,17 +240,17 @@ public class AdminContentMapper {
         );
     }
 
-    public static BatchJobMetric initBatchJobMetric(BatchJobType batchJobType) {
-        return BatchJobMetric.of(
-                batchJobType,
-                BatchJobStatus.NOOP,
+    public static StreamingJobMetric initStreamingJobMetric(StreamingJobType streamingJobType) {
+        return StreamingJobMetric.of(
+                streamingJobType,
+                StreamingJobStatus.NOOP,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
     }
 
     public static AdminScheduledContentResultGetResponse toAdminScheduledContentResultGetResponse(
-            BatchJobMetric metric) {
+            StreamingJobMetric metric) {
         return new AdminScheduledContentResultGetResponse(
                 metric.getId(),
                 metric.getType(),

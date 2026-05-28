@@ -1,17 +1,17 @@
 package com.example.udtbe.domain.admin.dto.response;
 
-import com.example.udtbe.domain.batch.entity.enums.BatchJobType;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingJobType;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
 import java.time.LocalDateTime;
 
 public record AdminScheduledContentResponse(
         Long id,
-        BatchStatus status,
+        StreamingStatus status,
         Long memberId,
         LocalDateTime createdAt,
         LocalDateTime scheduledAt,
         LocalDateTime finishedAt,
-        BatchJobType jobType
+        StreamingJobType jobType
 ) {
 
 }

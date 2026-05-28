@@ -8,7 +8,7 @@ import static org.mockito.Mockito.verify;
 
 import com.example.udtbe.domain.admin.service.StreamingJobExecutor;
 import com.example.udtbe.domain.admin.service.StreamingJobSpec;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
 import com.example.udtbe.global.exception.BulkValidationException;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;

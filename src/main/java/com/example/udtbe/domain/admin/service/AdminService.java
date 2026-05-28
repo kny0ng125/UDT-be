@@ -5,12 +5,14 @@ import com.example.udtbe.domain.admin.dto.AdminMemberMapper;
 import com.example.udtbe.domain.admin.dto.common.AdminCategoryDTO;
 import com.example.udtbe.domain.admin.dto.common.AdminMemberGenreFeedbackDTO;
 import com.example.udtbe.domain.admin.dto.common.AdminPlatformDTO;
-import com.example.udtbe.domain.admin.dto.common.BatchJobMetricDTO;
+import com.example.udtbe.domain.admin.dto.common.StreamingJobMetricDTO;
+import com.example.udtbe.domain.admin.dto.request.AdminCastUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentGetsRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
+import com.example.udtbe.domain.admin.dto.request.AdminDirectorUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminMemberListGetRequest;
@@ -36,20 +38,20 @@ import com.example.udtbe.domain.admin.dto.response.AdminScheduledContentResponse
 import com.example.udtbe.domain.admin.dto.response.AdminScheduledContentResultGetResponse;
 import com.example.udtbe.domain.admin.dto.response.AdminScheduledResContentMetricResponse;
 import com.example.udtbe.domain.admin.entity.Admin;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.BatchJobMetric;
-import com.example.udtbe.domain.batch.entity.enums.BatchFilterType;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.entity.enums.BatchJobStatus;
-import com.example.udtbe.domain.batch.entity.enums.BatchJobType;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentJobRepositoryImpl;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
-import com.example.udtbe.domain.batch.repository.BatchJobMetricRepository;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.StreamingJobMetric;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingFilterType;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingJobStatus;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingJobType;
+import com.example.udtbe.domain.streaming.repository.AdminContentDeleteJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentJobRepositoryImpl;
+import com.example.udtbe.domain.streaming.repository.AdminContentRegisterJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentUpdateJobRepository;
+import com.example.udtbe.domain.streaming.repository.StreamingJobMetricRepository;
 import com.example.udtbe.domain.content.dto.CastMapper;
 import com.example.udtbe.domain.content.dto.DirectorMapper;
 import com.example.udtbe.domain.content.entity.Cast;
@@ -83,6 +85,7 @@ import com.example.udtbe.domain.content.service.FeedbackStatisticsQuery;
 import com.example.udtbe.domain.member.entity.Member;
 import com.example.udtbe.domain.member.service.MemberQuery;
 import com.example.udtbe.global.dto.CursorPageResponse;
+import com.example.udtbe.domain.content.exception.ContentErrorCode;
 import com.example.udtbe.global.exception.RestApiException;
 import com.example.udtbe.global.exception.code.EnumErrorCode;
 import com.example.udtbe.global.log.annotation.LogReturn;
@@ -121,7 +124,7 @@ public class AdminService {
     private final AdminContentMapper adminContentMapper;
     private final AdminContentJobRepositoryImpl adminContentJobRepositoryImpl;
     private final FeedbackStatisticsRepositoryImpl feedbackStatisticsRepositoryImpl;
-    private final BatchJobMetricRepository batchJobMetricRepository;
+    private final StreamingJobMetricRepository streamingJobMetricRepository;
 
 
     @LogReturn
@@ -348,7 +351,6 @@ public class AdminService {
     public void deleteContent(Long contentId) {
         Content content = adminQuery.findAndValidContentByContentId(contentId);
         content.delete(true);
-        deleteContentRelation(content);
         ContentMetadata contentMetadata = adminQuery.findContentMetadataByContentId(contentId);
         contentMetadata.delete(true);
     }
@@ -484,42 +486,102 @@ public class AdminService {
         return adminQuery.getDirectors(adminDirectorsGetRequest);
     }
 
+    @Transactional
+    public void updateCast(Long castId, AdminCastUpdateRequest request) {
+        Cast cast = adminQuery.findCastByCastId(castId);
+        if (cast.isDeleted()) {
+            throw new RestApiException(ContentErrorCode.CAST_ALREADY_DELETED);
+        }
+        cast.update(request.castName(), request.castImageUrl());
+    }
+
+    @Transactional
+    public void deleteCast(Long castId) {
+        Cast cast = adminQuery.findCastByCastId(castId);
+        if (cast.isDeleted()) {
+            throw new RestApiException(ContentErrorCode.CAST_ALREADY_DELETED);
+        }
+        if (contentCastRepository.existsByCast_IdAndContent_IsDeletedFalse(castId)) {
+            throw new RestApiException(ContentErrorCode.CAST_DELETE_NOT_ALLOWED);
+        }
+        cast.softDelete();
+    }
+
+    @Transactional
+    public void restoreCast(Long castId) {
+        Cast cast = adminQuery.findCastByCastId(castId);
+        if (!cast.isDeleted()) {
+            throw new RestApiException(ContentErrorCode.CAST_ALREADY_ACTIVE);
+        }
+        cast.restore();
+    }
+
+    @Transactional
+    public void updateDirector(Long directorId, AdminDirectorUpdateRequest request) {
+        Director director = adminQuery.findDirectorByDirectorId(directorId);
+        if (director.isDeleted()) {
+            throw new RestApiException(ContentErrorCode.DIRECTOR_ALREADY_DELETED);
+        }
+        director.update(request.directorName(), request.directorImageUrl());
+    }
+
+    @Transactional
+    public void deleteDirector(Long directorId) {
+        Director director = adminQuery.findDirectorByDirectorId(directorId);
+        if (director.isDeleted()) {
+            throw new RestApiException(ContentErrorCode.DIRECTOR_ALREADY_DELETED);
+        }
+        if (contentDirectorRepository.existsByDirector_IdAndContent_IsDeletedFalse(directorId)) {
+            throw new RestApiException(ContentErrorCode.DIRECTOR_DELETE_NOT_ALLOWED);
+        }
+        director.softDelete();
+    }
+
+    @Transactional
+    public void restoreDirector(Long directorId) {
+        Director director = adminQuery.findDirectorByDirectorId(directorId);
+        if (!director.isDeleted()) {
+            throw new RestApiException(ContentErrorCode.DIRECTOR_ALREADY_ACTIVE);
+        }
+        director.restore();
+    }
+
     @Transactional(readOnly = true)
     public CursorPageResponse<AdminScheduledContentResponse> getBatchJobs(
             AdminScheduledContentsRequest request) {
-        BatchFilterType type = BatchFilterType.from(request.type());
+        StreamingFilterType type = StreamingFilterType.from(request.type());
         return adminContentJobRepositoryImpl
                 .getJobsByCursor(request.cursor(), request.size(), type);
     }
 
     @Transactional
     public void allUpdateMetric() {
-        List<BatchJobMetric> metrics = batchJobMetricRepository.findAll();
+        List<StreamingJobMetric> metrics = streamingJobMetricRepository.findAll();
         metrics.forEach(metric -> {
             updateMetric(metric.getId());
         });
     }
 
     private void updateMetric(Long metricJobId) {
-        BatchJobMetric metricJob = adminQuery.findAdminContentJobMetric(
+        StreamingJobMetric metricJob = adminQuery.findAdminContentJobMetric(
                 metricJobId);
 
-        BatchJobMetricDTO dto;
+        StreamingJobMetricDTO dto;
 
-        if (metricJob.getType().equals(BatchJobType.REGISTER)) {
+        if (metricJob.getType().equals(StreamingJobType.REGISTER)) {
             dto = adminContentJobRepositoryImpl.getContentRegisterJobMetrics(metricJobId);
-        } else if (metricJob.getType().equals(BatchJobType.UPDATE)) {
+        } else if (metricJob.getType().equals(StreamingJobType.UPDATE)) {
             dto = adminContentJobRepositoryImpl.getContentUpdateJobMetrics(metricJobId);
-        } else if (metricJob.getType().equals(BatchJobType.DELETE)) {
+        } else if (metricJob.getType().equals(StreamingJobType.DELETE)) {
             dto = adminContentJobRepositoryImpl.getContentDeleteJobMetrics(metricJobId);
         } else {
             throw new RestApiException(EnumErrorCode.BATCH_JOB_TYPE_BAD_REQUEST);
         }
 
-        BatchJobStatus status;
+        StreamingJobStatus status;
 
         if (dto.totalRead() == 0) {
-            batchJobMetricRepository.deleteById(metricJobId);
+            streamingJobMetricRepository.deleteById(metricJobId);
             return;
         }
 
@@ -530,11 +592,11 @@ public class AdminService {
         }
 
         if (dto.totalRead() == dto.totalCompleted()) {
-            status = BatchJobStatus.COMPLETED;
+            status = StreamingJobStatus.COMPLETED;
         } else if (dto.totalRead() == dto.totalFailed() || dto.totalRead() == dto.totalInvalid()) {
-            status = BatchJobStatus.FAILED;
+            status = StreamingJobStatus.FAILED;
         } else {
-            status = BatchJobStatus.PARTIAL_COMPLETED;
+            status = StreamingJobStatus.PARTIAL_COMPLETED;
         }
 
         metricJob.update(
@@ -549,14 +611,14 @@ public class AdminService {
     }
 
     @Transactional
-    public BatchJobMetric initMetric(BatchJobType type) {
-        return AdminContentMapper.initBatchJobMetric(type);
+    public StreamingJobMetric initMetric(StreamingJobType type) {
+        return AdminContentMapper.initStreamingJobMetric(type);
     }
 
     public AdminContentRegisterResponse resubmitRegisterJob(Long jobId,
             AdminContentRegisterRequest request) {
         AdminContentRegisterJob guard = adminQuery.findAdminContentRegisterJobById(jobId);
-        if (guard.getStatus() != BatchStatus.INVALID) {
+        if (guard.getStatus() != StreamingStatus.INVALID) {
             throw new RestApiException(EnumErrorCode.BATCH_STATUS_BAD_REQUEST);
         }
         final Long adminId = guard.getAdminId();
@@ -589,7 +651,7 @@ public class AdminService {
     public AdminContentUpdateResponse resubmitUpdateJob(Long jobId,
             AdminContentUpdateRequest request) {
         AdminContentUpdateJob guard = adminQuery.findAdminContentUpdateJobById(jobId);
-        if (guard.getStatus() != BatchStatus.INVALID) {
+        if (guard.getStatus() != StreamingStatus.INVALID) {
             throw new RestApiException(EnumErrorCode.BATCH_STATUS_BAD_REQUEST);
         }
         final Long adminId = guard.getAdminId();
@@ -628,7 +690,7 @@ public class AdminService {
 
     public AdminContentDeleteResponse resubmitDeleteJob(Long jobId, Long contentId) {
         AdminContentDeleteJob guard = adminQuery.findAdminContentDelJobById(jobId);
-        if (guard.getStatus() != BatchStatus.INVALID) {
+        if (guard.getStatus() != StreamingStatus.INVALID) {
             throw new RestApiException(EnumErrorCode.BATCH_STATUS_BAD_REQUEST);
         }
         final Long adminId = guard.getAdminId();

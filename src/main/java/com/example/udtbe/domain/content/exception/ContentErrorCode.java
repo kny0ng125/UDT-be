@@ -18,6 +18,12 @@ public enum ContentErrorCode implements ErrorCode {
     ALREADY_CURATED_CONTENT(HttpStatus.CONFLICT, "이미 저장된 엄선된 콘텐츠입니다."),
     DIRECTOR_NOT_FOUND(HttpStatus.NOT_FOUND, "감독을 찾을 수 없습니다."),
     CAST_NOT_FOUND(HttpStatus.NOT_FOUND, "출연진을 찾을 수 없습니다."),
+    CAST_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "콘텐츠에 연결된 출연진은 삭제할 수 없습니다."),
+    CAST_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 출연진입니다."),
+    CAST_ALREADY_ACTIVE(HttpStatus.CONFLICT, "이미 활성 상태인 출연진입니다."),
+    DIRECTOR_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "콘텐츠에 연결된 감독은 삭제할 수 없습니다."),
+    DIRECTOR_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 감독입니다."),
+    DIRECTOR_ALREADY_ACTIVE(HttpStatus.CONFLICT, "이미 활성 상태인 감독입니다."),
     ;
 
     private final HttpStatus httpStatus;

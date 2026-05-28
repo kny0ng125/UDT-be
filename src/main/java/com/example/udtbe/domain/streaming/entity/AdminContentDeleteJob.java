@@ -1,0 +1,132 @@
+package com.example.udtbe.domain.streaming.entity;
+
+
+import static lombok.AccessLevel.PRIVATE;
+
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.util.TimeUtil;
+import com.example.udtbe.global.entity.TimeBaseEntity;
+import io.hypersistence.utils.hibernate.type.json.JsonType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Type;
+
+@Entity
+@Getter
+@Table(name = "admin_content_delete_job")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class AdminContentDeleteJob extends TimeBaseEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "admin_content_delete_job_id")
+    private Long id;
+
+    @Enumerated(EnumType.STRING)
+    private StreamingStatus status;
+
+    private LocalDateTime scheduledAt;
+
+    private LocalDateTime finishedAt;
+
+    private Long adminId;
+
+    private Long contentId;
+
+    private String errorCode;
+
+    private String errorMessage;
+
+    @Type(JsonType.class)
+    @Column(name = "validation_errors", columnDefinition = "longtext")
+    private List<JobValidationError> validationErrors = new ArrayList<>();
+
+    private int retryCount = 0;
+
+    private int skipCount = 0;
+
+    @Column(name = "batch_job_metric_id")
+    private Long streamingJobMetricId;
+
+    @Builder(access = PRIVATE)
+    private AdminContentDeleteJob(StreamingStatus status, LocalDateTime scheduledAt, Long adminId,
+            Long contentId) {
+        this.status = status;
+        this.scheduledAt = scheduledAt;
+        this.adminId = adminId;
+        this.contentId = contentId;
+        this.retryCount = 0;
+        this.skipCount = 0;
+    }
+
+    public static AdminContentDeleteJob of(StreamingStatus status, Long adminId, Long contentId) {
+        return AdminContentDeleteJob.builder()
+                .status(status)
+                .scheduledAt(getScheduledAt())
+                .adminId(adminId)
+                .contentId(contentId)
+                .build();
+    }
+
+    public void changeStatus(StreamingStatus status) {
+        this.status = status;
+    }
+
+    public void setError(String errorCode, String errorMessage) {
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+    }
+
+    public void setValidationErrors(List<JobValidationError> validationErrors) {
+        this.validationErrors = validationErrors == null ? new ArrayList<>() : validationErrors;
+    }
+
+    public void clearErrors() {
+        this.errorCode = null;
+        this.errorMessage = null;
+        this.validationErrors = new ArrayList<>();
+    }
+
+    public void resetRetryCount() {
+        this.retryCount = 0;
+    }
+
+    public void updateContentId(Long contentId) {
+        this.contentId = contentId;
+    }
+
+    public void incrementRetryCount() {
+        this.retryCount += 1;
+    }
+
+    public void incrementSkipCount() {
+        this.skipCount += 1;
+    }
+
+    private static LocalDateTime getScheduledAt() {
+        return TimeUtil.getScheduledAt();
+    }
+
+    public void finish() {
+        finishedAt = LocalDateTime.now();
+    }
+
+    public void setStreamingJobMetricId(Long streamingJobMetricId) {
+        this.streamingJobMetricId = streamingJobMetricId;
+    }
+}
+

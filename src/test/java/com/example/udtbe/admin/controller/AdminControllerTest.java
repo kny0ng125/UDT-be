@@ -4,8 +4,10 @@ import static com.example.udtbe.domain.content.entity.enums.CategoryType.ANIMATI
 import static com.example.udtbe.domain.content.entity.enums.CategoryType.DRAMA;
 import static com.example.udtbe.domain.content.entity.enums.CategoryType.MOVIE;
 import static com.example.udtbe.domain.content.entity.enums.CategoryType.VARIETY;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -24,9 +26,9 @@ import com.example.udtbe.domain.admin.dto.request.AdminCastsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsRegisterRequest;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.BatchJobMetricRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentDeleteJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentRegisterJobRepository;
+import com.example.udtbe.domain.streaming.repository.StreamingJobMetricRepository;
 import com.example.udtbe.domain.content.entity.Cast;
 import com.example.udtbe.domain.content.entity.Category;
 import com.example.udtbe.domain.content.entity.Content;
@@ -86,7 +88,7 @@ public class AdminControllerTest extends ApiSupport {
     @Autowired
     private DirectorRepository directorRepository;
     @Autowired
-    private BatchJobMetricRepository batchJobMetricRepository;
+    private StreamingJobMetricRepository streamingJobMetricRepository;
     @Autowired
     private AdminContentRegisterJobRepository adminContentRegisterJobRepository;
     @Autowired
@@ -107,7 +109,7 @@ public class AdminControllerTest extends ApiSupport {
         directorRepository.deleteAllInBatch();
         contentMetadataRepository.deleteAllInBatch();
         contentRepository.deleteAllInBatch();
-        batchJobMetricRepository.deleteAllInBatch();
+        streamingJobMetricRepository.deleteAllInBatch();
     }
 
     @Test
@@ -125,7 +127,7 @@ public class AdminControllerTest extends ApiSupport {
                 List.of(new AdminPlatformDTO("넷플릭스", "https://watch"))
         );
 
-        mockMvc.perform(post("/api/admin/contents/registerjob")
+        mockMvc.perform(post("/api/admin/contents")
                         .content(objectMapper.writeValueAsString(adminContentRegisterRequest))
                         .contentType(MediaType.APPLICATION_JSON)
                         .cookie(accessTokenOfAdmin)
@@ -159,7 +161,7 @@ public class AdminControllerTest extends ApiSupport {
                         new AdminPlatformDTO("디즈니+", "w2")
                 )
         );
-        mockMvc.perform(post("/api/admin/contents/updatejob/{contentId}", content.getId())
+        mockMvc.perform(put("/api/admin/contents/{contentId}", content.getId())
                         .content(objectMapper.writeValueAsString(adminContentUpdateRequest))
                         .contentType(MediaType.APPLICATION_JSON)
                         .cookie(accessTokenOfAdmin)
@@ -178,7 +180,7 @@ public class AdminControllerTest extends ApiSupport {
         contentRepository.save(content);
 
         // when
-        mockMvc.perform(post("/api/admin/contents/deletejob/{contentId}", content.getId())
+        mockMvc.perform(delete("/api/admin/contents/{contentId}", content.getId())
                         .cookie(accessTokenOfAdmin)
                 )
                 .andExpect(status().isCreated())
@@ -691,7 +693,7 @@ public class AdminControllerTest extends ApiSupport {
         Long jobId = 1L;
 
         // when & then
-        mockMvc.perform(get("/api/admin/batch/contents/registerjob/{jobId}", jobId)
+        mockMvc.perform(get("/api/admin/content-jobs/register/{jobId}", jobId)
                         .cookie(accessTokenOfAdmin)
                 )
                 .andExpect(status().isOk());
@@ -707,7 +709,7 @@ public class AdminControllerTest extends ApiSupport {
         Long jobId = 1L;
 
         // when & then
-        mockMvc.perform(get("/api/admin/batch/contents/deletejob/{jobId}", jobId)
+        mockMvc.perform(get("/api/admin/content-jobs/delete/{jobId}", jobId)
                         .cookie(accessTokenOfAdmin)
                 )
                 .andExpect(status().isOk());

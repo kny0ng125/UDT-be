@@ -3,18 +3,20 @@ package com.example.udtbe.domain.admin.service;
 import com.example.udtbe.domain.admin.dto.AdminContentMapper;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
-import com.example.udtbe.domain.batch.dto.JobValidationError;
-import com.example.udtbe.domain.batch.entity.AdminContentDeleteJob;
-import com.example.udtbe.domain.batch.entity.AdminContentRegisterJob;
-import com.example.udtbe.domain.batch.entity.AdminContentUpdateJob;
-import com.example.udtbe.domain.batch.entity.enums.BatchStatus;
-import com.example.udtbe.domain.batch.repository.AdminContentDeleteJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentRegisterJobRepository;
-import com.example.udtbe.domain.batch.repository.AdminContentUpdateJobRepository;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.entity.AdminContentDeleteJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentRegisterJob;
+import com.example.udtbe.domain.streaming.entity.AdminContentUpdateJob;
+import com.example.udtbe.domain.streaming.entity.enums.StreamingStatus;
+import com.example.udtbe.domain.streaming.exception.StreamingErrorCode;
+import com.example.udtbe.domain.streaming.repository.AdminContentDeleteJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentRegisterJobRepository;
+import com.example.udtbe.domain.streaming.repository.AdminContentUpdateJobRepository;
 import com.example.udtbe.domain.content.entity.Content;
 import com.example.udtbe.domain.content.entity.ContentMetadata;
 import com.example.udtbe.domain.content.event.ContentStreamingEvent;
 import com.example.udtbe.domain.content.event.ContentStreamingType;
+import com.example.udtbe.global.exception.RestApiException;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -41,26 +43,56 @@ public class AdminTriggerService {
     public void retryFailedBatch() {
         List<AdminContentRegisterJob> failedRegJobs =
                 registerJobRepository.findByStatusAndRetryCountLessThan(
-                        BatchStatus.FAILED, MAX_RETRY_COUNT);
+                        StreamingStatus.FAILED, MAX_RETRY_COUNT);
         failedRegJobs.forEach(this::retryRegisterJob);
 
         List<AdminContentUpdateJob> failedUpJobs =
                 updateJobRepository.findByStatusAndRetryCountLessThan(
-                        BatchStatus.FAILED, MAX_RETRY_COUNT);
+                        StreamingStatus.FAILED, MAX_RETRY_COUNT);
         failedUpJobs.forEach(this::retryUpdateJob);
 
         List<AdminContentDeleteJob> failedDelJobs =
                 deleteJobRepository.findByStatusAndRetryCountLessThan(
-                        BatchStatus.FAILED, MAX_RETRY_COUNT);
+                        StreamingStatus.FAILED, MAX_RETRY_COUNT);
         failedDelJobs.forEach(this::retryDeleteJob);
 
         log.info("실패 건 재처리 완료: 등록={}, 수정={}, 삭제={}",
                 failedRegJobs.size(), failedUpJobs.size(), failedDelJobs.size());
     }
 
+    @Transactional
+    public void retryRegisterJobById(Long jobId) {
+        AdminContentRegisterJob job = adminQuery.findAdminContentRegisterJobById(jobId);
+        ensureRetryable(job.getStatus(), job.getRetryCount());
+        retryRegisterJob(job);
+    }
+
+    @Transactional
+    public void retryUpdateJobById(Long jobId) {
+        AdminContentUpdateJob job = adminQuery.findAdminContentUpdateJobById(jobId);
+        ensureRetryable(job.getStatus(), job.getRetryCount());
+        retryUpdateJob(job);
+    }
+
+    @Transactional
+    public void retryDeleteJobById(Long jobId) {
+        AdminContentDeleteJob job = adminQuery.findAdminContentDelJobById(jobId);
+        ensureRetryable(job.getStatus(), job.getRetryCount());
+        retryDeleteJob(job);
+    }
+
+    private void ensureRetryable(StreamingStatus status, int retryCount) {
+        if (status != StreamingStatus.FAILED) {
+            throw new RestApiException(StreamingErrorCode.JOB_NOT_FAILED);
+        }
+        if (retryCount >= MAX_RETRY_COUNT) {
+            throw new RestApiException(StreamingErrorCode.JOB_RETRY_LIMIT_EXCEEDED);
+        }
+    }
+
     private void retryRegisterJob(AdminContentRegisterJob job) {
         job.incrementRetryCount();
-        job.changeStatus(BatchStatus.PROCESSING);
+        job.changeStatus(StreamingStatus.PROCESSING);
         try {
             AdminContentRegisterRequest request =
                     AdminContentMapper.toContentRegisterRequest(job);
@@ -70,7 +102,7 @@ public class AdminTriggerService {
                     request.casts(), request.directors());
 
             if (!errors.isEmpty()) {
-                job.changeStatus(BatchStatus.INVALID);
+                job.changeStatus(StreamingStatus.INVALID);
                 job.setError("VALIDATION_ERROR", errors.get(0).message());
                 job.setValidationErrors(errors);
                 job.finish();
@@ -84,10 +116,10 @@ public class AdminTriggerService {
             eventPublisher.publishEvent(ContentStreamingEvent.of(
                     this, ContentStreamingType.REGISTER, content.getId(), metadata));
 
-            job.changeStatus(BatchStatus.COMPLETED);
+            job.changeStatus(StreamingStatus.COMPLETED);
             job.finish();
         } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
+            job.changeStatus(StreamingStatus.FAILED);
             job.setError("RETRY_FAILED", e.getMessage());
             job.finish();
             log.warn("등록 Job 재시도 실패 - jobId={} (retry {}/{}): {}",
@@ -97,7 +129,7 @@ public class AdminTriggerService {
 
     private void retryUpdateJob(AdminContentUpdateJob job) {
         job.incrementRetryCount();
-        job.changeStatus(BatchStatus.PROCESSING);
+        job.changeStatus(StreamingStatus.PROCESSING);
         try {
             AdminContentUpdateRequest request =
                     AdminContentMapper.toContentUpdateRequest(job);
@@ -109,7 +141,7 @@ public class AdminTriggerService {
                     request.casts(), request.directors()));
 
             if (!errors.isEmpty()) {
-                job.changeStatus(BatchStatus.INVALID);
+                job.changeStatus(StreamingStatus.INVALID);
                 job.setError("VALIDATION_ERROR", errors.get(0).message());
                 job.setValidationErrors(errors);
                 job.finish();
@@ -124,10 +156,10 @@ public class AdminTriggerService {
             eventPublisher.publishEvent(ContentStreamingEvent.of(
                     this, ContentStreamingType.UPDATE, job.getContentId(), metadata));
 
-            job.changeStatus(BatchStatus.COMPLETED);
+            job.changeStatus(StreamingStatus.COMPLETED);
             job.finish();
         } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
+            job.changeStatus(StreamingStatus.FAILED);
             job.setError("RETRY_FAILED", e.getMessage());
             job.finish();
             log.warn("수정 Job 재시도 실패 - jobId={} (retry {}/{}): {}",
@@ -137,13 +169,13 @@ public class AdminTriggerService {
 
     private void retryDeleteJob(AdminContentDeleteJob job) {
         job.incrementRetryCount();
-        job.changeStatus(BatchStatus.PROCESSING);
+        job.changeStatus(StreamingStatus.PROCESSING);
         try {
             List<JobValidationError> errors = adminQuery.collectContentIdValidationError(
                     job.getContentId());
 
             if (!errors.isEmpty()) {
-                job.changeStatus(BatchStatus.INVALID);
+                job.changeStatus(StreamingStatus.INVALID);
                 job.setError("VALIDATION_ERROR", errors.get(0).message());
                 job.setValidationErrors(errors);
                 job.finish();
@@ -156,10 +188,10 @@ public class AdminTriggerService {
             eventPublisher.publishEvent(ContentStreamingEvent.of(
                     this, ContentStreamingType.DELETE, job.getContentId(), null));
 
-            job.changeStatus(BatchStatus.COMPLETED);
+            job.changeStatus(StreamingStatus.COMPLETED);
             job.finish();
         } catch (Exception e) {
-            job.changeStatus(BatchStatus.FAILED);
+            job.changeStatus(StreamingStatus.FAILED);
             job.setError("RETRY_FAILED", e.getMessage());
             job.finish();
             log.warn("삭제 Job 재시도 실패 - jobId={} (retry {}/{}): {}",

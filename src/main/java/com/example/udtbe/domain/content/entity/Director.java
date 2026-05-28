@@ -55,4 +55,21 @@ public class Director extends TimeBaseEntity {
                 .isDeleted(false)
                 .build();
     }
+
+    public void update(String directorName, String directorImageUrl) {
+        if (directorName != null) {
+            this.directorName = directorName;
+        }
+        if (directorImageUrl != null) {
+            this.directorImageUrl = directorImageUrl;
+        }
+    }
+
+    public void softDelete() {
+        this.isDeleted = true;
+    }
+
+    public void restore() {
+        this.isDeleted = false;
+    }
 }

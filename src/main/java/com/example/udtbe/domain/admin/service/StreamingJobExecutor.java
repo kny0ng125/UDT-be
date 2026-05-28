@@ -1,7 +1,8 @@
 package com.example.udtbe.domain.admin.service;
 
-import com.example.udtbe.domain.batch.dto.JobValidationError;
+import com.example.udtbe.domain.streaming.dto.JobValidationError;
 import com.example.udtbe.global.exception.BulkValidationException;
+import com.example.udtbe.global.exception.StreamingFailureException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -31,8 +32,7 @@ public class StreamingJobExecutor {
             throw e;
         } catch (Exception e) {
             Long jobId = spec.persistFailed(e);
-            log.warn("스트리밍 작업 처리 실패 - jobId={}: {}", jobId, e.getMessage());
-            throw e;
+            throw new StreamingFailureException(jobId, e.getMessage());
         }
     }
 }

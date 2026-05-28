@@ -1,11 +1,13 @@
 package com.example.udtbe.domain.admin.controller;
 
+import com.example.udtbe.domain.admin.dto.request.AdminCastUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminCastsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentDeleteResubmitRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentGetsRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminContentUpdateRequest;
+import com.example.udtbe.domain.admin.dto.request.AdminDirectorUpdateRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsGetRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminDirectorsRegisterRequest;
 import com.example.udtbe.domain.admin.dto.request.AdminMemberListGetRequest;
@@ -47,6 +49,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @Tag(name = "관리자 API", description = "관리자 관련 API")
@@ -57,7 +60,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "201", description = "등록 예정 콘텐츠 registerJobId 반환"),
             @ApiResponse(responseCode = "400", description = "올바르지 않은 분류/플렛폼/장르 타입")
     })
-    @PostMapping("/api/admin/contents/registerjob")
+    @PostMapping("/api/admin/contents")
     ResponseEntity<AdminContentRegisterResponse> registerContent(
             @AuthenticationPrincipal Admin admin,
             @Valid @RequestBody AdminContentRegisterRequest adminContentRegisterRequest
@@ -69,7 +72,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "404", description = "존재하지 않는 콘텐츠"),
             @ApiResponse(responseCode = "400", description = "올바르지 않은 분류/플렛폼/장르 타입")
     })
-    @PostMapping("/api/admin/contents/updatejob/{contentId}")
+    @PutMapping("/api/admin/contents/{contentId}")
     ResponseEntity<AdminContentUpdateResponse> updateContent(
             @AuthenticationPrincipal Admin admin,
             @PathVariable(name = "contentId") Long contentId,
@@ -81,7 +84,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "201", description = "삭제 예정 콘텐츠 deleteJobId 반환"),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 콘텐츠")
     })
-    @PostMapping("/api/admin/contents/deletejob/{contentId}")
+    @DeleteMapping("/api/admin/contents/{contentId}")
     ResponseEntity<AdminContentDeleteResponse> deleteContent(
             @AuthenticationPrincipal Admin admin,
             @PathVariable(name = "contentId") Long contentId
@@ -92,7 +95,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "201", description = "재처리된 Job ID 반환"),
             @ApiResponse(responseCode = "400", description = "INVALID 상태가 아니거나 검증 실패")
     })
-    @PostMapping("/api/admin/contents/registerjob/{jobId}/resubmit")
+    @PostMapping("/api/admin/content-jobs/register/{jobId}/resubmit")
     ResponseEntity<AdminContentRegisterResponse> resubmitRegisterJob(
             @PathVariable(name = "jobId") Long jobId,
             @Valid @RequestBody AdminContentRegisterRequest request
@@ -103,7 +106,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "201", description = "재처리된 Job ID 반환"),
             @ApiResponse(responseCode = "400", description = "INVALID 상태가 아니거나 검증 실패")
     })
-    @PostMapping("/api/admin/contents/updatejob/{jobId}/resubmit")
+    @PostMapping("/api/admin/content-jobs/update/{jobId}/resubmit")
     ResponseEntity<AdminContentUpdateResponse> resubmitUpdateJob(
             @PathVariable(name = "jobId") Long jobId,
             @Valid @RequestBody AdminContentUpdateRequest request
@@ -114,7 +117,7 @@ public interface AdminControllerApiSpec {
             @ApiResponse(responseCode = "201", description = "재처리된 Job ID 반환"),
             @ApiResponse(responseCode = "400", description = "INVALID 상태가 아니거나 검증 실패")
     })
-    @PostMapping("/api/admin/contents/deletejob/{jobId}/resubmit")
+    @PostMapping("/api/admin/content-jobs/delete/{jobId}/resubmit")
     ResponseEntity<AdminContentDeleteResponse> resubmitDeleteJob(
             @PathVariable(name = "jobId") Long jobId,
             @Valid @RequestBody AdminContentDeleteResubmitRequest request
@@ -194,11 +197,79 @@ public interface AdminControllerApiSpec {
             @Valid @ModelAttribute AdminDirectorsGetRequest adminDirectorsGetRequest
     );
 
+    @Operation(summary = "출연진 수정", description = "출연진의 이름/이미지 URL을 부분 갱신한다(null 필드는 미변경).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "수정 성공"),
+            @ApiResponse(responseCode = "404", description = "출연진을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 삭제된 출연진"),
+    })
+    @PutMapping("/api/admin/casts/{castId}")
+    ResponseEntity<Void> updateCast(
+            @PathVariable(name = "castId") Long castId,
+            @Valid @RequestBody AdminCastUpdateRequest request
+    );
+
+    @Operation(summary = "출연진 삭제", description = "출연진을 soft delete 한다. 살아있는 콘텐츠와 연결되어 있으면 거부한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공"),
+            @ApiResponse(responseCode = "404", description = "출연진을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 삭제됐거나 콘텐츠에 연결되어 있음"),
+    })
+    @DeleteMapping("/api/admin/casts/{castId}")
+    ResponseEntity<Void> deleteCast(
+            @PathVariable(name = "castId") Long castId
+    );
+
+    @Operation(summary = "출연진 복구", description = "soft delete 된 출연진을 활성 상태로 복구한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "복구 성공"),
+            @ApiResponse(responseCode = "404", description = "출연진을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 활성 상태"),
+    })
+    @PostMapping("/api/admin/casts/{castId}/restore")
+    ResponseEntity<Void> restoreCast(
+            @PathVariable(name = "castId") Long castId
+    );
+
+    @Operation(summary = "감독 수정", description = "감독의 이름/이미지 URL을 부분 갱신한다(null 필드는 미변경).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "수정 성공"),
+            @ApiResponse(responseCode = "404", description = "감독을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 삭제된 감독"),
+    })
+    @PutMapping("/api/admin/directors/{directorId}")
+    ResponseEntity<Void> updateDirector(
+            @PathVariable(name = "directorId") Long directorId,
+            @Valid @RequestBody AdminDirectorUpdateRequest request
+    );
+
+    @Operation(summary = "감독 삭제", description = "감독을 soft delete 한다. 살아있는 콘텐츠와 연결되어 있으면 거부한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "삭제 성공"),
+            @ApiResponse(responseCode = "404", description = "감독을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 삭제됐거나 콘텐츠에 연결되어 있음"),
+    })
+    @DeleteMapping("/api/admin/directors/{directorId}")
+    ResponseEntity<Void> deleteDirector(
+            @PathVariable(name = "directorId") Long directorId
+    );
+
+    @Operation(summary = "감독 복구", description = "soft delete 된 감독을 활성 상태로 복구한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "복구 성공"),
+            @ApiResponse(responseCode = "404", description = "감독을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "이미 활성 상태"),
+    })
+    @PostMapping("/api/admin/directors/{directorId}/restore")
+    ResponseEntity<Void> restoreDirector(
+            @PathVariable(name = "directorId") Long directorId
+    );
+
     @Operation(summary = "배치 예정 목록", description = "배치 예정 목록을 조회한다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "배치 예정 목록반환"),
     })
-    @GetMapping("/api/admin/batch")
+    @GetMapping("/api/admin/content-jobs")
     ResponseEntity<CursorPageResponse<AdminScheduledContentResponse>> getBatches(
             @Valid @ModelAttribute AdminScheduledContentsRequest adminContentJobGetsRequest
     );
@@ -207,7 +278,7 @@ public interface AdminControllerApiSpec {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "배치 별 결과 목록 반환"),
     })
-    @GetMapping("/api/admin/batch/results")
+    @GetMapping("/api/admin/content-jobs/results")
     ResponseEntity<CursorPageResponse<AdminScheduledContentResultGetResponse>> getBatchResults(
             @Valid @ModelAttribute AdminScheduledContentResultGetsRequest request
     );
@@ -216,7 +287,7 @@ public interface AdminControllerApiSpec {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "전체 배치 집계 조회")
     })
-    @GetMapping("/api/admin/batch/metrics")
+    @GetMapping("/api/admin/content-jobs/metrics")
     ResponseEntity<AdminScheduledContentMetricGetResponse> getBatchMetric();
 
     @Operation(summary = "콘텐츠 카테고리 지표 조회", description = "콘텐츠 카테고리 별 비율 정보를 가져온다.")
@@ -230,7 +301,7 @@ public interface AdminControllerApiSpec {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "등록 배치 작업 상세 반환"),
     })
-    @GetMapping("/api/admin/batch/contents/registerjob/{jobId}")
+    @GetMapping("/api/admin/content-jobs/register/{jobId}")
     ResponseEntity<AdminContentRegJobGetDetailResponse> getBatchRegJobDetails(
             @PathVariable(value = "jobId") Long jobId
     );
@@ -239,7 +310,7 @@ public interface AdminControllerApiSpec {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 배치 작업 상세 반환"),
     })
-    @GetMapping("/api/admin/batch/contents/updatejob/{jobId}")
+    @GetMapping("/api/admin/content-jobs/update/{jobId}")
     ResponseEntity<AdminContentUpJobGetDetailResponse> getBatchUpJobDetails(
             @PathVariable(value = "jobId") Long jobId
     );
@@ -248,7 +319,7 @@ public interface AdminControllerApiSpec {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제 배치 작업 상세 반환"),
     })
-    @GetMapping("/api/admin/batch/contents/deletejob/{jobId}")
+    @GetMapping("/api/admin/content-jobs/delete/{jobId}")
     ResponseEntity<AdminContentDelJobGetDetailResponse> getBatchDelJobDetails(
             @PathVariable(value = "jobId") Long jobId
     );
@@ -266,22 +337,49 @@ public interface AdminControllerApiSpec {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "삭제된 작업 건수 정보 반환"),
     })
-    @DeleteMapping("/api/admin/batch/invalid")
+    @DeleteMapping("/api/admin/content-jobs/invalid")
     ResponseEntity<Void> deleteInvalidBatchJobs();
 
     @Operation(summary = "배치 예정 작업 집계", description = "콘텐츠 등록/수정/삭제에 대한 배치 예정 작업 집계를 얻을 수 있다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "콘텐츠 등록/수정/삭제에 대한 배치 예정 작업 집계 반환")
     })
-    @GetMapping("/api/admin/batch/metrics/reservation")
+    @GetMapping("/api/admin/content-jobs/metrics/reservation")
     ResponseEntity<AdminScheduledResContentMetricResponse> getScheduledResContentMetric();
 
     @Operation(summary = "배치 작업 실패에 대한 재시도", description = "배치 작업 실패에 대한 재시도를 할 수 있다.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "배치 작업 재시도")
     })
-    @PostMapping("/api/admin/batch")
+    @PostMapping("/api/admin/content-jobs/retry")
     ResponseEntity<Void> retryFailedContents();
+
+    @Operation(summary = "FAILED 등록 Job 단건 재시도", description = "FAILED 상태인 단건 등록 Job을 저장된 입력값으로 재시도한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "재시도 시작"),
+            @ApiResponse(responseCode = "404", description = "Job을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "FAILED 상태 아님 또는 재시도 한도 초과")
+    })
+    @PostMapping("/api/admin/content-jobs/register/{jobId}/retry")
+    ResponseEntity<Void> retryRegisterJob(@PathVariable(name = "jobId") Long jobId);
+
+    @Operation(summary = "FAILED 수정 Job 단건 재시도", description = "FAILED 상태인 단건 수정 Job을 저장된 입력값으로 재시도한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "재시도 시작"),
+            @ApiResponse(responseCode = "404", description = "Job을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "FAILED 상태 아님 또는 재시도 한도 초과")
+    })
+    @PostMapping("/api/admin/content-jobs/update/{jobId}/retry")
+    ResponseEntity<Void> retryUpdateJob(@PathVariable(name = "jobId") Long jobId);
+
+    @Operation(summary = "FAILED 삭제 Job 단건 재시도", description = "FAILED 상태인 단건 삭제 Job을 저장된 contentId로 재시도한다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "재시도 시작"),
+            @ApiResponse(responseCode = "404", description = "Job을 찾을 수 없음"),
+            @ApiResponse(responseCode = "409", description = "FAILED 상태 아님 또는 재시도 한도 초과")
+    })
+    @PostMapping("/api/admin/content-jobs/delete/{jobId}/retry")
+    ResponseEntity<Void> retryDeleteJob(@PathVariable(name = "jobId") Long jobId);
 
     @Operation(summary = "어드민 로그아웃 API", description = "로그아웃한다.")
     @ApiResponse(useReturnTypeSchema = true)

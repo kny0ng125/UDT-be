@@ -14,7 +14,14 @@
       "PowerShell(.\\\\gradlew.bat test --console=plain -q)",
       "PowerShell(.\\\\gradlew.bat test --console=plain -q --tests \"com.example.udtbe.content.service.ContentRecommendationServiceTest\" --tests \"com.example.udtbe.content.service.RecommendationResponseBuilderTest\" --tests \"com.example.udtbe.content.service.RecommendationScoreCalculatorTest\" --tests \"com.example.udtbe.content.service.RecommendationQueryBuilderTest\" --tests \"com.example.udtbe.content.service.GenreAnalyzerTest\" --tests \"com.example.udtbe.admin.service.AdminServiceStreamingTest\" --tests \"com.example.udtbe.admin.service.AdminServiceResubmitTest\" --tests \"com.example.udtbe.admin.service.StreamingJobExecutorTest\")",
       "Bash(git -C \"C:/Users/SSAFY/IdeaProjects/UDT-be\" status --short)",
-      "Bash(git -C \"C:/Users/SSAFY/IdeaProjects/UDT-be\" branch --show-current)"
+      "Bash(git -C \"C:/Users/SSAFY/IdeaProjects/UDT-be\" branch --show-current)",
+      "PowerShell(Move-Item *)",
+      "PowerShell(.\\\\gradlew.bat clean compileJava 2>&1 | Select-Object -Last 80)",
+      "PowerShell(.\\\\gradlew.bat compileJava 2>&1 | Select-Object -Last 60)",
+      "PowerShell(.\\\\gradlew.bat compileTestJava 2>&1 | Select-Object -Last 80)",
+      "PowerShell(.\\\\gradlew.bat compileJava compileTestJava 2>&1 | Select-Object -Last 30)",
+      "PowerShell(.\\\\gradlew.bat compileJava compileTestJava 2>&1 | Select-Object -Last 15)",
+      "PowerShell(.\\\\gradlew.bat compileJava compileTestJava 2>&1 | Select-Object -Last 10)"
     ]
   }
 }
